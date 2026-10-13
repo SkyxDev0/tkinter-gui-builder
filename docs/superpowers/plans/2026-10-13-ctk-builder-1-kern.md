@@ -50,7 +50,7 @@ die Standardwerte in `SPECS` anpassen.
 **Files:**
 - Create: `requirements.txt`, `requirements-dev.txt`, `pyproject.toml`, `README.md`, `ctk_builder/__init__.py`
 
-- [ ] **Step 1: Python mit Tk 8.6+ bereitstellen**
+- [x] **Step 1: Python mit Tk 8.6+ bereitstellen**
 
 macOS:
 ```bash
@@ -64,7 +64,7 @@ python3 -c "import tkinter; print(tkinter.TkVersion)"
 ```
 Expected: `8.6` oder höher (z. B. `9.0`). **Nicht** das macOS-System-Python (`/usr/bin/python3`, Tk 8.5) verwenden.
 
-- [ ] **Step 2: `requirements.txt` anlegen**
+- [x] **Step 2: `requirements.txt` anlegen**
 
 Datei `requirements.txt`:
 
@@ -72,7 +72,7 @@ Datei `requirements.txt`:
 customtkinter>=6.0,<7
 ```
 
-- [ ] **Step 3: `requirements-dev.txt` anlegen**
+- [x] **Step 3: `requirements-dev.txt` anlegen**
 
 Datei `requirements-dev.txt`:
 
@@ -81,7 +81,7 @@ Datei `requirements-dev.txt`:
 pytest>=8
 ```
 
-- [ ] **Step 4: `pyproject.toml` anlegen**
+- [x] **Step 4: `pyproject.toml` anlegen**
 
 Datei `pyproject.toml`:
 
@@ -91,7 +91,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 ```
 
-- [ ] **Step 5: `README.md` anlegen**
+- [x] **Step 5: `README.md` anlegen**
 
 Datei `README.md`:
 
@@ -138,7 +138,7 @@ Ohne Display werden die Oberflächentests übersprungen.
 - Pläne: `docs/superpowers/plans/`
 ````
 
-- [ ] **Step 6: Paket und Virtualenv anlegen**
+- [x] **Step 6: Paket und Virtualenv anlegen**
 
 ```bash
 mkdir -p ctk_builder tests/snapshots
@@ -149,13 +149,13 @@ python3.12 -m venv .venv        # Linux: python3 -m venv .venv
 ```
 Expected: eine Version `6.x`.
 
-- [ ] **Step 7: Leeren Testlauf prüfen**
+- [x] **Step 7: Leeren Testlauf prüfen**
 
 Run: `.venv/bin/pytest`
 
 Expected: `no tests ran` (Exit-Code 5) – pytest ist eingerichtet.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add requirements.txt requirements-dev.txt pyproject.toml README.md ctk_builder/__init__.py
@@ -171,7 +171,7 @@ Datenklassen für Fenster, Widgets, Grid-Konfiguration und Layout sowie Hilfsfun
 - Create: `ctk_builder/model.py`
 - Test: `tests/test_model.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_model.py`:
 
@@ -263,13 +263,13 @@ def test_subscribe_and_unsubscribe():
     assert calls == [1]
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_model.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.model'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/model.py`:
 
@@ -463,13 +463,13 @@ class Project:
         return f"{prefix}_{n}"
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_model.py -v`
 
 Expected: 8 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/model.py tests/test_model.py
@@ -485,7 +485,7 @@ Eine Tabelle `SPECS` mit allen V1-Widgets (Label, Button, Entry, Textbox, CheckB
 - Create: `ctk_builder/widget_specs.py`
 - Test: `tests/test_widget_specs.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_widget_specs.py`:
 
@@ -587,13 +587,13 @@ def test_format_value():
     assert format_value("x") == "x"
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_widget_specs.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.widget_specs'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/widget_specs.py`:
 
@@ -778,13 +778,13 @@ def format_value(value: Any) -> str:
     return "" if value is None else str(value)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_widget_specs.py -v`
 
 Expected: 36 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/widget_specs.py tests/test_widget_specs.py
@@ -800,7 +800,7 @@ Widget-Namen werden zu `self.<name>`, Handler zu Methoden, RadioButton-Gruppen z
 - Create: `ctk_builder/names.py`
 - Test: `tests/test_names.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_names.py`:
 
@@ -847,13 +847,13 @@ def test_own_name_is_not_a_valid_handler(project):
         names.check_identifier(project, names.HANDLER, "button_1", node_id="b")
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_names.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.names'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/names.py`:
 
@@ -923,13 +923,13 @@ def check_identifier(project: Project, kind: str, value: str,
         raise ValueError(f"„{value}“ wird schon verwendet")
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_names.py -v`
 
 Expected: 8 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/names.py tests/test_names.py
@@ -945,7 +945,7 @@ Jede Modelländerung ist ein `Command`. Die Basisklasse speichert vor und nach `
 - Create: `ctk_builder/commands.py`
 - Test: `tests/test_commands.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_commands.py`:
 
@@ -1225,13 +1225,13 @@ def test_execute_notifies(stack):
     assert calls == [1, 1, 1]
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_commands.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.commands'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/commands.py`:
 
@@ -1681,13 +1681,13 @@ class SetLineConfig(Command):
         lines[self.index] = copy.copy(self.config)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_commands.py -v`
 
 Expected: 26 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/commands.py tests/test_commands.py
@@ -1707,7 +1707,7 @@ Speichern/Laden als `*.ctkb.json` mit `format_version`. Speichern ist atomar
 - Create: `ctk_builder/project_io.py`
 - Test: `tests/test_project_io.py`
 
-- [ ] **Step 1: Gemeinsame Test-Hilfen anlegen**
+- [x] **Step 1: Gemeinsame Test-Hilfen anlegen**
 
 `has_display()` darf **nicht** mit `tkinter.Tk()` testen: Ein zerstörtes `tk.Tk` gefolgt von `ctk.CTk` bringt Tk auf macOS zum Absturz (SIGTRAP).
 
@@ -1789,7 +1789,7 @@ def has_display() -> bool:
 requires_display = pytest.mark.skipif(not has_display(), reason="kein Display verfügbar")
 ```
 
-- [ ] **Step 2: Failing Test schreiben**
+- [x] **Step 2: Failing Test schreiben**
 
 Datei `tests/test_project_io.py`:
 
@@ -1861,13 +1861,13 @@ def test_missing_file(tmp_path):
         project_io.load(tmp_path / "fehlt.ctkb.json")
 ```
 
-- [ ] **Step 3: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 3: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_project_io.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.project_io'`
 
-- [ ] **Step 4: Implementierung schreiben**
+- [x] **Step 4: Implementierung schreiben**
 
 Datei `ctk_builder/project_io.py`:
 
@@ -1981,13 +1981,13 @@ def load(path: Path) -> Project:
     return from_dict(data)
 ```
 
-- [ ] **Step 5: Tests ausführen**
+- [x] **Step 5: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_project_io.py -v`
 
 Expected: 15 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/conftest.py ctk_builder/project_io.py tests/test_project_io.py
@@ -2007,7 +2007,7 @@ ein Argument pro Zeile umgebrochen, Strings mit doppelten Anführungszeichen.
 - Create: `tests/snapshots/kontakt_ui.py.txt`, `tests/snapshots/kontakt.py.txt`
 - Test: `tests/test_codegen.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_codegen.py`:
 
@@ -2076,7 +2076,7 @@ def test_generated_ui_runs(tmp_path, kontakt, monkeypatch):
         app.destroy()
 ```
 
-- [ ] **Step 2: Referenzausgabe für die UI-Datei anlegen**
+- [x] **Step 2: Referenzausgabe für die UI-Datei anlegen**
 
 Das ist exakt die erwartete Ausgabe für das Beispielprojekt aus `conftest.py`. Bei späteren, gewollten Änderungen am Generator die Snapshots mit `UPDATE_SNAPSHOTS=1 .venv/bin/pytest tests/test_codegen.py` neu schreiben und den Diff prüfen.
 
@@ -2153,7 +2153,7 @@ class KontaktUI(ctk.CTk):
         raise NotImplementedError("on_save in kontakt.py implementieren")
 ```
 
-- [ ] **Step 3: Referenzausgabe für die Logik-Datei anlegen**
+- [x] **Step 3: Referenzausgabe für die Logik-Datei anlegen**
 
 Datei `tests/snapshots/kontakt.py.txt`:
 
@@ -2174,13 +2174,13 @@ if __name__ == "__main__":
     app.mainloop()
 ```
 
-- [ ] **Step 4: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 4: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_codegen.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.codegen'`
 
-- [ ] **Step 5: Implementierung schreiben**
+- [x] **Step 5: Implementierung schreiben**
 
 Datei `ctk_builder/codegen.py`:
 
@@ -2382,13 +2382,13 @@ def generate(project: Project, module_name: str) -> GeneratedFiles:
     )
 ```
 
-- [ ] **Step 6: Tests ausführen**
+- [x] **Step 6: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_codegen.py -v`
 
 Expected: 6 passed (unter Linux ohne Display: 5 passed, 1 skipped – dann mit `xvfb-run -a` wiederholen)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add ctk_builder/codegen.py tests/test_codegen.py tests/snapshots
@@ -2404,7 +2404,7 @@ Schreibt `<modul>_ui.py` (immer, atomar) und `<modul>.py` (nur wenn noch nicht v
 - Create: `ctk_builder/exporter.py`
 - Test: `tests/test_exporter.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_exporter.py`:
 
@@ -2455,13 +2455,13 @@ def test_hand_edited_ui_file_needs_confirmation(tmp_path, kontakt):
     assert (tmp_path / "kontakt_ui.py").read_text(encoding="utf-8").startswith(HEADER)
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_exporter.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.exporter'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/exporter.py`:
 
@@ -2530,13 +2530,13 @@ def export(project: Project, project_path: Path, force: bool = False) -> ExportR
     return ExportResult(ui_path, logic_path, logic_created)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_exporter.py -v`
 
 Expected: 8 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/exporter.py tests/test_exporter.py
@@ -2546,13 +2546,13 @@ git commit -m "feat: Export der generierten Dateien"
 
 ### Task 9: Abschluss Plan 1
 
-- [ ] **Step 1: Komplette Testsuite**
+- [x] **Step 1: Komplette Testsuite**
 
 Run: `.venv/bin/pytest -v` (Linux ohne Display: `xvfb-run -a .venv/bin/pytest -v`)
 
 Expected: `107 passed`
 
-- [ ] **Step 2: Pushen**
+- [x] **Step 2: Pushen**
 
 ```bash
 git push

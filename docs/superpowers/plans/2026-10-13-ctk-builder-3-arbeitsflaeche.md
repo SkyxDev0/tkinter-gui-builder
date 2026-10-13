@@ -53,7 +53,7 @@ Linien sind 1-px-`tkinter.Frame`s, die per `place(in_=container_view)` über das
 - Create: `ctk_builder/ui/grid_overlay.py`
 - Test: `tests/test_ui_grid_overlay.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_grid_overlay.py`:
 
@@ -95,13 +95,13 @@ def test_header_click_selects_line_and_plus_adds_column(overlay):
     assert len(overlay._lines) == 14  # eine senkrechte Linie mehr
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_grid_overlay.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.grid_overlay'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/grid_overlay.py`:
 
@@ -244,13 +244,13 @@ class GridOverlay:
         menu.tk_popup(event.x_root, event.y_root)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_grid_overlay.py -v`
 
 Expected: 3 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/grid_overlay.py tests/test_ui_grid_overlay.py
@@ -266,7 +266,7 @@ git commit -m "feat: Rasterlinien und Zeilen-/Spaltenköpfe"
 - Create: `ctk_builder/ui/drag_drop.py`
 - Test: `tests/test_ui_drag_drop.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_drag_drop.py`:
 
@@ -347,13 +347,13 @@ def test_small_movement_is_a_click(drag):
     assert session.project.find(name.id).layout.row == 0
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_drag_drop.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.drag_drop'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/drag_drop.py`:
 
@@ -528,13 +528,13 @@ class DragController:
             bar.place_forget()
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_drag_drop.py -v`
 
 Expected: 5 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/drag_drop.py tests/test_ui_drag_drop.py
@@ -548,7 +548,7 @@ git commit -m "feat: Drag & Drop aus der Palette und auf der Arbeitsfläche"
 - Modify: `ctk_builder/ui/main_window.py`
 - Test: `tests/test_ui_main_window.py` (Tests anhängen)
 
-- [ ] **Step 1: Failing Tests an `tests/test_ui_main_window.py` anhängen**
+- [x] **Step 1: Failing Tests an `tests/test_ui_main_window.py` anhängen**
 
 ```python
 def test_arrow_keys_move_selected_widget(app):
@@ -567,13 +567,13 @@ def test_overlay_and_drag_are_wired(app):
     assert app.canvas.on_press == app.drag.press_on_canvas
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: 2 failed mit `AttributeError: 'MainWindow' object has no attribute 'nudge'` bzw. `'grid_overlay'`
 
-- [ ] **Step 3: Import von `MoveWidget`**
+- [x] **Step 3: Import von `MoveWidget`**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -587,7 +587,7 @@ durch:
 from ctk_builder.commands import DuplicateWidget, MoveWidget, RemoveWidget
 ```
 
-- [ ] **Step 4: Importe der neuen Module**
+- [x] **Step 4: Importe der neuen Module**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -603,7 +603,7 @@ from ctk_builder.ui.drag_drop import DragController
 from ctk_builder.ui.grid_overlay import GridOverlay
 ```
 
-- [ ] **Step 5: Overlay und DragController nach der Arbeitsfläche erzeugen**
+- [x] **Step 5: Overlay und DragController nach der Arbeitsfläche erzeugen**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -621,7 +621,7 @@ durch:
         self.drag = DragController(self.canvas, self.palette)
 ```
 
-- [ ] **Step 6: Pfeiltasten in `_bind_keys` binden**
+- [x] **Step 6: Pfeiltasten in `_bind_keys` binden**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -642,7 +642,7 @@ durch:
             self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
 ```
 
-- [ ] **Step 7: Methode `nudge` vor `duplicate_selected` einfügen**
+- [x] **Step 7: Methode `nudge` vor `duplicate_selected` einfügen**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -667,13 +667,13 @@ durch:
     def duplicate_selected(self) -> None:
 ```
 
-- [ ] **Step 8: Tests ausführen**
+- [x] **Step 8: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: 6 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add ctk_builder/ui/main_window.py tests/test_ui_main_window.py
@@ -683,13 +683,13 @@ git commit -m "feat: Raster, Drag & Drop und Pfeiltasten im Hauptfenster"
 
 ### Task 4: Abschluss Plan 3
 
-- [ ] **Step 1: Komplette Testsuite**
+- [x] **Step 1: Komplette Testsuite**
 
 Run: `.venv/bin/pytest -v` (Linux ohne Display: `xvfb-run -a .venv/bin/pytest -v`)
 
 Expected: `144 passed`
 
-- [ ] **Step 2: Manueller Drag-&-Drop-Test (nur mit Desktop)**
+- [x] **Step 2: Manueller Drag-&-Drop-Test (nur mit Desktop)**
 
 Drag & Drop mit echter Maus lässt sich nicht vollständig automatisiert testen. Run: `.venv/bin/python -m ctk_builder`
 
@@ -705,8 +705,245 @@ Drag & Drop mit echter Maus lässt sich nicht vollständig automatisiert testen.
 
 Gefundene Probleme als eigene Tasks nachtragen und mit Test-first beheben.
 
-- [ ] **Step 3: Pushen**
+- [x] **Step 3: Pushen**
 
 ```bash
 git push
 ```
+
+
+### Task 5: Klicks und Tasten auf CTkFrame-Flächen (nachgetragen)
+
+Gefunden beim manuellen Test aus Task 4 (Schritte 5, 6 und 8), durchgespielt mit echten
+Mausereignissen (`xdotool` unter Xvfb). Zwei Eigenheiten von `CTkFrame`, die Tests mit
+`event_generate` direkt auf dem Frame nicht bemerken:
+
+- `CTkFrame.winfo_children()` verbirgt das interne `_canvas`. Es bekam daher kein
+  `design-…`-Bindtag: Ein Klick auf eine leere Stelle der Arbeitsfläche oder eines Frames
+  wählte nichts aus, und ein Frame ließ sich an seiner freien Fläche nicht greifen.
+- `CTkFrame.bind()` bindet an das interne `_canvas`, den Fokus holt sich aber `DesignCanvas`
+  selbst (`_pressed` → `focus_set()`). Pfeiltasten und Entf/Rücktaste wirkten auf der
+  Arbeitsfläche deshalb nie.
+
+**Files:**
+- Modify: `ctk_builder/ui/canvas.py`, `ctk_builder/ui/main_window.py`
+- Test: `tests/test_ui_canvas.py`, `tests/test_ui_main_window.py` (Tests anhängen)
+
+- [x] **Step 1: Failing Tests anhängen**
+
+An `tests/test_ui_canvas.py` anhängen (klickt wie die echte Maus das Widget, das oben liegt):
+
+```python
+def click_screen(canvas, x_root, y_root):
+    """Klickt das Tk-Widget, das an der Bildschirmposition oben liegt – wie die echte Maus."""
+    target = canvas.winfo_containing(x_root, y_root)
+    click(target, x_root - target.winfo_rootx(), y_root - target.winfo_rooty())
+
+
+def test_click_on_empty_area_of_frames_selects_them(canvas):
+    """CTkFrame verbirgt sein internes Canvas in winfo_children(); Klicks darauf zählen trotzdem."""
+    session = canvas.session
+    command = AddWidget("window", "CTkFrame", 4, 0)
+    session.execute(command)
+    canvas.update()
+    view = canvas.views[command.node_id]
+    click_screen(canvas, view.winfo_rootx() + 20, view.winfo_rooty() + 20)
+    assert session.selected_id == command.node_id
+    surface = canvas.surface
+    click_screen(canvas, surface.winfo_rootx() + 410, surface.winfo_rooty() + 250)
+    assert session.selected_id == "window"
+```
+
+An `tests/test_ui_main_window.py` anhängen (Import oben: `from conftest import click, node_named`):
+
+```python
+def test_keys_reach_canvas_after_click(app):
+    """Nach einem Klick hat die Arbeitsfläche den Fokus; Pfeiltasten und Entf wirken dort."""
+    session = app.session
+    switch = AddWidget("window", "CTkSwitch", 4, 0)
+    session.execute(switch)
+    app.update()
+    app.focus_force()
+    click(app.canvas.views[switch.node_id].winfo_children()[0])
+    assert app.focus_get() is app.canvas
+    app.canvas.event_generate("<Right>")
+    assert session.project.find(switch.node_id).layout.column == 1
+    app.canvas.event_generate("<Delete>")
+    assert session.project.find(switch.node_id) is None
+```
+
+- [x] **Step 2: Tests ausführen und Fehlschlag prüfen**
+
+Run: `.venv/bin/pytest tests/test_ui_canvas.py tests/test_ui_main_window.py -v`
+
+Expected: 2 failed (Auswahl bleibt `window` bzw. Spalte bleibt 0)
+
+- [x] **Step 3: Internes Canvas mit taggen**
+
+In `ctk_builder/ui/canvas.py` (`_tag_tree`) ersetzen:
+
+```python
+        for child in view.winfo_children():
+```
+
+durch:
+
+```python
+        # tkinter.Misc.winfo_children: CTkFrame verbirgt sein internes Canvas in
+        # winfo_children(), Klicks auf leere Frame-Flächen landen aber genau dort
+        for child in tkinter.Misc.winfo_children(view):
+```
+
+- [x] **Step 4: Tasten an das fokussierte Widget binden**
+
+In `ctk_builder/ui/main_window.py` (`_bind_keys`) ersetzen:
+
+```python
+        for widget in (self.canvas, self.tree.tree):
+            widget.bind("<Delete>", lambda e: self.delete_selected())
+            widget.bind("<BackSpace>", lambda e: self.delete_selected())
+        for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
+                                       "Left": (0, -1), "Right": (0, 1)}.items():
+            self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
+```
+
+durch:
+
+```python
+        # tkinter.Misc.bind: CTkFrame.bind() bindet an sein internes Canvas,
+        # den Fokus hat aber die Arbeitsfläche selbst (DesignCanvas._pressed)
+        for widget in (self.canvas, self.tree.tree):
+            tkinter.Misc.bind(widget, "<Delete>", lambda e: self.delete_selected())
+            tkinter.Misc.bind(widget, "<BackSpace>", lambda e: self.delete_selected())
+        for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
+                                       "Left": (0, -1), "Right": (0, 1)}.items():
+            tkinter.Misc.bind(self.canvas, f"<{key}>",
+                              lambda e, r=d_row, c=d_column: self.nudge(r, c))
+```
+
+- [x] **Step 5: Komplette Testsuite**
+
+Run: `xvfb-run -a .venv/bin/pytest -q`
+
+Expected: `146 passed`
+
+- [x] **Step 6: Commit**
+
+```bash
+git add ctk_builder/ui/canvas.py ctk_builder/ui/main_window.py tests/test_ui_canvas.py tests/test_ui_main_window.py docs/superpowers/plans/2026-10-13-ctk-builder-3-arbeitsflaeche.md
+git commit -m "fix: Klicks und Tasten auf CTkFrame-Flächen der Arbeitsfläche"
+```
+
+
+### Task 6: Leere Container messbar machen (nachgetragen)
+
+Ebenfalls beim manuellen Test gefunden: Hat ein Container noch **keine Kinder**, berechnet Tk
+für ihn gar kein Raster – `grid_bbox()` liefert `0 0 0 0`, und `grid_location()` liefert für
+jeden Punkt `(1, 1)`, obwohl die Zeilen/Spalten mit `minsize=40` konfiguriert sind. Folgen in
+jedem neuen Projekt und in jedem leeren Frame: keine Rasterlinien, Köpfe nur 1 px breit,
+unsichtbarer Zielrahmen, und jeder Drop hängt eine Zeile und Spalte an (Widget landet in
+(1, 1), Zeile 0 und Spalte 0 bleiben leer). Abhilfe: ein unsichtbarer Platzhalter in Zelle
+(0, 0) jedes leeren Containers. Damit ein leerer Frame dadurch nicht auf 40 × 40 schrumpft
+(im echten Programm ist er 200 × 200), wird bei ihm `grid_propagate(False)` gesetzt.
+
+**Files:**
+- Modify: `ctk_builder/ui/canvas.py`
+- Test: `tests/test_ui_canvas.py`, `tests/test_ui_drag_drop.py` (Tests anhängen)
+
+- [x] **Step 1: Failing Tests anhängen**
+
+An `tests/test_ui_canvas.py` anhängen (Importe oben: `from ctk_builder.session import Session`,
+`from ctk_builder.ui.canvas import EMPTY_LINE_MIN, DesignCanvas, widget_kwargs`):
+
+```python
+def test_empty_containers_have_measurable_cells(root):
+    """Ohne Kinder berechnet Tk kein Raster; leere Zellen müssen trotzdem messbar sein."""
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    assert design.surface.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    frame = AddWidget("window", "CTkFrame", 0, 1)
+    session.execute(frame)
+    root.update()
+    view = design.views[frame.node_id]
+    assert view.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    # der leere Frame behält seine Größe wie im echten Programm
+    assert view.winfo_height() > EMPTY_LINE_MIN
+```
+
+An `tests/test_ui_drag_drop.py` anhängen (Importe oben: `from ctk_builder.session import Session`,
+`from ctk_builder.ui.canvas import DesignCanvas`):
+
+```python
+def test_drop_target_in_empty_window(root):
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    surface = design.surface
+    target = drop_target(design, surface.winfo_rootx() + 10, surface.winfo_rooty() + 10)
+    assert target == DropTarget("window", 0, 0)
+```
+
+- [x] **Step 2: Tests ausführen und Fehlschlag prüfen**
+
+Run: `.venv/bin/pytest tests/test_ui_canvas.py tests/test_ui_drag_drop.py -v`
+
+Expected: 2 failed (`(0, 0, 0, 0) == (0, 0, 40, 40)` bzw. Ziel `row=1, column=1`)
+
+- [x] **Step 3: Platzhalter in `ctk_builder/ui/canvas.py`**
+
+In `__init__` nach `self.views: dict[...] = {}` ergänzen:
+
+```python
+        self._placeholders: list[tkinter.Frame] = []
+```
+
+In `render()` ersetzen:
+
+```python
+        for view in self.views.values():
+            view.destroy()
+        self.views.clear()
+```
+
+durch:
+
+```python
+        for widget in [*self._placeholders, *self.views.values()]:
+            widget.destroy()
+        self._placeholders.clear()
+        self.views.clear()
+```
+
+Am Ende von `_configure_grid()` anhängen:
+
+```python
+        if not node.children:
+            # Ohne Kinder berechnet Tk kein Raster (grid_bbox = 0 0 0 0): Ein
+            # unsichtbarer Platzhalter macht die leeren Zellen messbar und sichtbar
+            placeholder = tkinter.Frame(view, width=0, height=0)
+            placeholder.grid(row=0, column=0)
+            placeholder.lower()
+            self._placeholders.append(placeholder)
+            view.grid_propagate(False)  # leerer Frame behält seine Größe wie im Programm
+```
+
+- [x] **Step 4: Komplette Testsuite**
+
+Run: `xvfb-run -a .venv/bin/pytest -q`
+
+Expected: `148 passed`
+
+- [x] **Step 5: Commit**
+
+```bash
+git add ctk_builder/ui/canvas.py tests/test_ui_canvas.py tests/test_ui_drag_drop.py docs/superpowers/plans/2026-10-13-ctk-builder-3-arbeitsflaeche.md
+git commit -m "fix: Raster und Drop-Ziele in leeren Containern"
+```
+
+**Offener Punkt (nicht umgesetzt, Entscheidung nötig):** Ein Drop weit außerhalb des Rasters
+hängt – wie spezifiziert – genau eine Zeile/Spalte an. In einem leeren 200 × 200-Frame (oder
+leeren Fenster) ist aber fast die ganze Fläche „außerhalb“; wer in die Mitte zieht, bekommt
+Zelle (1, 1) und eine leere Zeile 0 / Spalte 0. Der grüne Zielrahmen zeigt das vorher an.

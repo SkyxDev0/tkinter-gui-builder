@@ -1,0 +1,68 @@
+# AUTOMATISCH GENERIERT von CTk Builder – nicht von Hand bearbeiten!
+# Eigene Logik gehört in kontakt.py.
+import customtkinter as ctk
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+
+class KontaktUI(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("Kontakt")
+        self.geometry("420x260")
+        self.resizable(False, False)
+        self.grid_columnconfigure(1, weight=1)
+
+        self.newsletter = ctk.StringVar(value="")
+
+        self.label_name = ctk.CTkLabel(self, text="Name:")
+        self.label_name.grid(row=0, column=0, padx=8, pady=4, sticky="w")
+
+        self.entry_name = ctk.CTkEntry(self, placeholder_text="Max Muster")
+        self.entry_name.grid(row=0, column=1, padx=8, pady=4, sticky="ew")
+
+        self.label_mail = ctk.CTkLabel(self, text="E-Mail:")
+        self.label_mail.grid(row=1, column=0)
+
+        self.entry_mail = ctk.CTkEntry(self)
+        self.entry_mail.grid(row=1, column=1)
+
+        self.radio_ja = ctk.CTkRadioButton(
+            self,
+            text="Newsletter",
+            variable=self.newsletter,
+            value="ja",
+        )
+        self.radio_ja.grid(row=2, column=0)
+
+        self.radio_nein = ctk.CTkRadioButton(
+            self,
+            text="Kein Newsletter",
+            variable=self.newsletter,
+            value="nein",
+        )
+        self.radio_nein.grid(row=2, column=1)
+
+        self.frame_buttons = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_buttons.grid(row=3, column=0, columnspan=2, sticky="e")
+        self.button_cancel = ctk.CTkButton(
+            self.frame_buttons,
+            text="Abbrechen",
+            fg_color="#555555",
+            command=self.on_cancel,
+        )
+        self.button_cancel.grid(row=0, column=0)
+        self.button_save = ctk.CTkButton(
+            self.frame_buttons,
+            text="Speichern",
+            font=ctk.CTkFont(size=14),
+            command=self.on_save,
+        )
+        self.button_save.grid(row=0, column=1, padx=4)
+
+    def on_cancel(self):
+        raise NotImplementedError("on_cancel in kontakt.py implementieren")
+
+    def on_save(self):
+        raise NotImplementedError("on_save in kontakt.py implementieren")

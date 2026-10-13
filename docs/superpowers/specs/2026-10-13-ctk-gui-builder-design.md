@@ -17,7 +17,7 @@ Eine Desktop-App, mit der man eine CustomTkinter-GUI per Drag & Drop in einem `g
 | Widget-Familie | CustomTkinter |
 | Logik/Handler | Zwei Dateien: `<name>_ui.py` (immer überschrieben) + `<name>.py` (nur einmal angelegt, erbt von UI-Klasse) |
 | Arbeitsfläche | Echte CTk-Widgets, normales Verhalten abgefangen, Overlays für Raster/Auswahl |
-| Builder-Fensterlayout | Links Palette + Strukturbaum, Mitte Arbeitsfläche, rechts Eigenschaften |
+| Builder-Fensterlayout | Kopfzeile; links Icon-Leiste mit umschaltbarem Panel (Palette / Strukturbaum), Mitte Arbeitsfläche + Ausgabe, rechts Eigenschaften |
 | Fenster pro Projekt | genau eins |
 
 ## Umfang Version 1
@@ -86,6 +86,25 @@ Modell ──► codegen (Python-Quelltext)
 - Bei jeder Modelländerung wird die Arbeitsfläche komplett neu aufgebaut (V1: einfaches Neurendern, keine feingranulare Aktualisierung).
 - Appearance-Mode und Farbthema sind in CustomTkinter global. Die Vorschau nutzt daher die Einstellungen des Builders; das echte Aussehen zeigt **▶ Ausführen**.
 
+## Gestaltung
+
+Moderner, kartenbasierter Look nach dem Vorbild von PyUIBuilder:
+
+- **Farben:** heller Grundton mit weißen Karten (runde Ecken, dünner Rand); jede Farbe ist ein
+  (hell, dunkel)-Paar, sodass auch der Dunkelmodus passt (`ui/theme.py`).
+- **Kopfzeile:** Logo, Menüs „Datei“ und „Bearbeiten“, Projektname mit Hinweis „ungespeichert“,
+  Rückgängig/Wiederholen, Speichern, Exportieren und der dunkle Hauptknopf **▶ Ausführen**.
+  Auf macOS stehen die Menüs zusätzlich in der Systemmenüleiste.
+- **Links:** Icon-Leiste (Widgets / Struktur), die das Seitenpanel umschaltet. Die Palette zeigt
+  Kacheln mit gezeichneter Vorschau und hat ein Suchfeld.
+- **Arbeitsfläche:** Rasterhintergrund; das entworfene Fenster sitzt in einem Rahmen mit Titelleiste
+  (Ampelpunkte, Titel, Größe). Eine schwebende Werkzeugleiste bietet Duplizieren, Löschen und
+  Rasterlinien ein/aus. Klick auf Hintergrund oder Titelleiste wählt das Fenster.
+- **Eigenschaften:** Kopf mit Name und Typ, darunter aufklappbare Abschnitte. Kurze Auswahlen
+  (≤ 3 Werte) sind Segment-Knöpfe, `sticky` sind vier Umschalt-Chips, `resizable` ein Schalter.
+- **Icons** sind Vektorgrafiken auf `tkinter.Canvas` (`ui/icons.py`) – keine Bilddateien, keine
+  zusätzliche Abhängigkeit, scharf auf jedem Bildschirm.
+
 ## Code-Export
 
 Für ein Projekt `kontakt` entstehen neben der Projektdatei:
@@ -148,6 +167,9 @@ ctk_builder/
   runner.py         # exportiertes Programm starten
   settings.py       # ~/.ctk_builder.json
   ui/
+    theme.py        # Farben (hell/dunkel), Schriften, Karten- und Knopfstile
+    icons.py        # Vektor-Icons und Widget-Vorschauen
+    widgets.py      # Icon-Knopf, Leisten-Eintrag, Umschalt-Chip, Tooltip
     main_window.py
     palette.py
     structure_tree.py

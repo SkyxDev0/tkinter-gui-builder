@@ -1,0 +1,125 @@
+name: Tests & Builds
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Systempakete
+        run: sudo apt-get update && sudo apt-get install -y xvfb libtk8.6
+      - name: Installieren
+        run: python -m pip install -e ".[dev]"
+      - name: Tests mit virtuellem Display
+        shell: bash
+        run: |
+          xvfb-run -a python -m pytest -v -rs | tee pytest.log
+          if grep -qE "[0-9]+ skipped" pytest.log; then
+            echo "::error::Oberflächentests wurden übersprungen"
+            exit 1
+          fi
+
+  app:
+    name: App (${{ matrix.label }})
+    needs: test
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, label: Linux }
+          - { os: windows-latest, label: Windows }
+          - { os: macos-latest, label: macOS }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Systempakete (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libtk8.6
+      - name: Installieren
+        run: python -m pip install ".[app]"
+      - name: App bauen
+        run: python tools/build.py
+      - name: App prüfen
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a python tools/smoke_test.py
+          else
+            python tools/smoke_test.py
+          fi
+      - name: Download-Datei erstellen
+        run: python tools/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.label }}
+          path: release/*
+          if-no-files-found: error
+
+  python-package:
+    name: Python-Paket
+    needs: test
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Wheel und Quellpaket bauen
+        run: |
+          python -m pip install build
+          python -m build --outdir release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: Release veröffentlichen
+    needs: [app, python-package]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          notes="docs/releases/${GITHUB_REF_NAME}.md"
+          ls -la release
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "CTk Builder ${GITHUB_REF_NAME#v}" \
+            --notes-file "$notes"
