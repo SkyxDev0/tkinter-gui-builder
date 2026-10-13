@@ -57,7 +57,7 @@ Gemeinsamer Zustand aller Panels. `subscribe()` meldet Modelländerungen (inkl. 
 - Create: `ctk_builder/session.py`
 - Test: `tests/test_session.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_session.py`:
 
@@ -159,13 +159,13 @@ def test_open_broken_file_keeps_project(tmp_path, session):
     assert len(list(session.project.iter_widgets())) == 1
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_session.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.session'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/session.py`:
 
@@ -302,13 +302,13 @@ class Session:
         return self.stack.dirty
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_session.py -v`
 
 Expected: 7 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/session.py tests/test_session.py
@@ -323,7 +323,7 @@ git commit -m "feat: Session mit Auswahl und Dateiverwaltung"
 - Create: `ctk_builder/settings.py`
 - Test: `tests/test_runner_settings.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_runner_settings.py`:
 
@@ -381,13 +381,13 @@ def test_settings_broken_file(tmp_path):
     assert Settings(path).interpreter == sys.executable
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_runner_settings.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.runner'`
 
-- [ ] **Step 3: Runner implementieren**
+- [x] **Step 3: Runner implementieren**
 
 Ein Hintergrund-Thread liest stdout/stderr zeilenweise in eine Queue; die Oberfläche holt sie per `drain()` ab (Tkinter darf nur im Hauptthread angefasst werden).
 
@@ -453,7 +453,7 @@ class ProcessRunner:
                 return "".join(lines)
 ```
 
-- [ ] **Step 4: Einstellungen implementieren**
+- [x] **Step 4: Einstellungen implementieren**
 
 Datei `ctk_builder/settings.py`:
 
@@ -491,13 +491,13 @@ class Settings:
         self.path.write_text(json.dumps(self.data, indent=2) + "\n", encoding="utf-8")
 ```
 
-- [ ] **Step 5: Tests ausführen**
+- [x] **Step 5: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_runner_settings.py -v`
 
 Expected: 4 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ctk_builder/runner.py ctk_builder/settings.py tests/test_runner_settings.py
@@ -513,7 +513,7 @@ git commit -m "feat: Prozess-Runner und Builder-Einstellungen"
 - Create: `ctk_builder/ui/palette.py`
 - Test: `tests/test_ui_palette.py`
 
-- [ ] **Step 1: Test-Hilfen an `tests/conftest.py` anhängen**
+- [x] **Step 1: Test-Hilfen an `tests/conftest.py` anhängen**
 
 Die Fixtures `app` und `canvas` importieren Module, die erst in späteren Tasks entstehen – das ist in Ordnung, weil die Importe innerhalb der Fixtures stehen. `click()` erzeugt zuerst `<Enter>`, weil `CTkButton` den Befehl nur auslöst, wenn die Maus „drin“ ist.
 
@@ -592,7 +592,7 @@ def type_into(entry, text):
     entry.update()
 ```
 
-- [ ] **Step 2: Failing Test schreiben**
+- [x] **Step 2: Failing Test schreiben**
 
 Datei `tests/test_ui_palette.py`:
 
@@ -626,19 +626,19 @@ def test_palette_adds_into_selected_frame(root):
     assert session.project.find(frame.node_id).children[0].name == "label_1"
 ```
 
-- [ ] **Step 3: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 3: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_palette.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui'`
 
-- [ ] **Step 4: Paket anlegen**
+- [x] **Step 4: Paket anlegen**
 
 ```bash
 touch ctk_builder/ui/__init__.py
 ```
 
-- [ ] **Step 5: Palette implementieren**
+- [x] **Step 5: Palette implementieren**
 
 Abweichung von der Spezifikation: Ein **einfacher Klick** (statt Doppelklick) fügt ein. In Plan 3 wird Ziehen ergänzt; ein Klick ohne Bewegung bleibt Einfügen.
 
@@ -678,13 +678,13 @@ class Palette(ctk.CTkFrame):
             self.session.select(command.node_id)
 ```
 
-- [ ] **Step 6: Tests ausführen**
+- [x] **Step 6: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_palette.py -v`
 
 Expected: 2 passed
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tests/conftest.py ctk_builder/ui/__init__.py ctk_builder/ui/palette.py tests/test_ui_palette.py
@@ -700,7 +700,7 @@ CustomTkinter hat kein Baum-Widget, daher `ttk.Treeview` mit eigenem Style. Die 
 - Create: `ctk_builder/ui/structure_tree.py`
 - Test: `tests/test_ui_tree.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_tree.py`:
 
@@ -730,13 +730,13 @@ def test_tree_mirrors_model_and_selection(root):
     assert session.selected_id == frame.node_id
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_tree.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.structure_tree'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/structure_tree.py`:
 
@@ -826,13 +826,13 @@ class StructureTree(ctk.CTkFrame):
             self.session.select(selection[0])
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_tree.py -v`
 
 Expected: 1 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/structure_tree.py tests/test_ui_tree.py
@@ -848,7 +848,7 @@ Wird bei jeder Modell- oder Auswahländerung komplett neu aufgebaut. Eingabefeld
 - Create: `ctk_builder/ui/properties.py`
 - Test: `tests/test_ui_properties.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_properties.py`:
 
@@ -919,13 +919,13 @@ def test_properties_window_and_line(root):
     assert session.project.window.grid.columns[0].weight == 2
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_properties.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.properties'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/properties.py`:
 
@@ -1142,13 +1142,13 @@ def _int(name: str, text: str) -> int:
     return int(text)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_properties.py -v`
 
 Expected: 4 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/properties.py tests/test_ui_properties.py
@@ -1164,7 +1164,7 @@ Rendert das entworfene Fenster als `CTkFrame` (`surface`, feste Größe) mit ech
 - Create: `ctk_builder/ui/canvas.py`
 - Test: `tests/test_ui_canvas.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_canvas.py`:
 
@@ -1224,13 +1224,13 @@ def test_node_at(canvas):
     assert canvas.node_at(surface.winfo_rootx() - 10, surface.winfo_rooty() - 10) is None
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_canvas.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.canvas'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/canvas.py`:
 
@@ -1422,13 +1422,13 @@ class DesignCanvas(ctk.CTkFrame):
             bar.lift()
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_canvas.py -v`
 
 Expected: 5 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/canvas.py tests/test_ui_canvas.py
@@ -1444,7 +1444,7 @@ git commit -m "feat: Arbeitsfläche mit echten CTk-Widgets"
 - Create: `ctk_builder/__main__.py`
 - Test: `tests/test_ui_main_window.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_main_window.py`:
 
@@ -1500,13 +1500,13 @@ def test_confirm_discard_without_changes(app):
     assert app.confirm_discard()
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: FAIL (ERROR in Fixture `app`) mit `ModuleNotFoundError: No module named 'ctk_builder.ui.main_window'`
 
-- [ ] **Step 3: Ausgabe-Panel implementieren**
+- [x] **Step 3: Ausgabe-Panel implementieren**
 
 Datei `ctk_builder/ui/output_console.py`:
 
@@ -1556,7 +1556,7 @@ class OutputConsole(ctk.CTkFrame):
         self.after(POLL_MS, self._poll)
 ```
 
-- [ ] **Step 4: Hauptfenster implementieren**
+- [x] **Step 4: Hauptfenster implementieren**
 
 Die Menüleiste wird direkt über `tkinter.Tk.configure(self, menu=…)` gesetzt, an CTks eigener configure()-Logik vorbei. Tastenkürzel: Cmd (macOS) bzw. Strg.
 
@@ -1781,7 +1781,7 @@ def main() -> None:
     MainWindow().mainloop()
 ```
 
-- [ ] **Step 5: Startpunkt anlegen**
+- [x] **Step 5: Startpunkt anlegen**
 
 Datei `ctk_builder/__main__.py`:
 
@@ -1791,13 +1791,13 @@ from ctk_builder.ui.main_window import main
 main()
 ```
 
-- [ ] **Step 6: Tests ausführen**
+- [x] **Step 6: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: 4 passed
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add ctk_builder/ui/output_console.py ctk_builder/ui/main_window.py ctk_builder/__main__.py tests/test_ui_main_window.py
@@ -1807,13 +1807,13 @@ git commit -m "feat: Hauptfenster mit Menüs, Export und Ausführen"
 
 ### Task 8: Abschluss Plan 2
 
-- [ ] **Step 1: Komplette Testsuite**
+- [x] **Step 1: Komplette Testsuite**
 
 Run: `.venv/bin/pytest -v` (Linux ohne Display: `xvfb-run -a .venv/bin/pytest -v`)
 
 Expected: `134 passed`
 
-- [ ] **Step 2: Manuell ausprobieren (nur mit Desktop)**
+- [x] **Step 2: Manuell ausprobieren (nur mit Desktop)**
 
 Run: `.venv/bin/python -m ctk_builder`
 
@@ -1825,7 +1825,7 @@ Prüfen:
 5. `Cmd+R`: Speichern-Dialog → z. B. `~/Desktop/test/kontakt.ctkb.json`; das Programm startet als eigenes Fenster, Ausgabe erscheint unten.
 6. In `kontakt.py` `on_save` mit `print("gespeichert")` füllen, erneut `Cmd+R`, Button klicken: Ausgabe erscheint; `kontakt.py` bleibt beim Export unverändert.
 
-- [ ] **Step 3: Pushen**
+- [x] **Step 3: Pushen**
 
 ```bash
 git push
