@@ -29,6 +29,7 @@ class GridOverlay:
         self.session = canvas.session
         self._lines: list[tkinter.Frame] = []
         self._headers: list[tkinter.Widget] = []
+        self._menu: tkinter.Menu | None = None
         self.lines_visible = True
         canvas.after_render.append(self.redraw)
         self.session.subscribe_selection(self.redraw_headers)
@@ -102,6 +103,9 @@ class GridOverlay:
                             self._context_menu(e, container_id, a, i))
                 header.bind("<Button-3>", lambda e, a=axis, i=index:
                             self._context_menu(e, container_id, a, i))
+                # Mac-Trackpads ohne Sekundärklick: Control-Klick
+                header.bind("<Control-Button-1>", lambda e, a=axis, i=index:
+                            self._context_menu(e, container_id, a, i))
                 if axis == "column":
                     header.place(x=origin_x + start + 1, y=anchor_y - HEADER_SIZE - 2,
                                  width=max(size - 2, 1), height=HEADER_SIZE - 2)
@@ -137,7 +141,9 @@ class GridOverlay:
                       axis: str, index: int) -> None:
         name = "Zeile" if axis == "row" else "Spalte"
         execute = self.session.execute
-        menu = tkinter.Menu(self.canvas, tearoff=False)
+        if self._menu is not None:  # nur ein Menü behalten statt bei jedem Klick ein neues
+            self._menu.destroy()
+        menu = self._menu = tkinter.Menu(self.canvas, tearoff=False)
         menu.add_command(label=f"{name} davor einfügen",
                          command=lambda: execute(InsertLine(container_id, axis, index)))
         menu.add_command(label=f"{name} danach einfügen",
