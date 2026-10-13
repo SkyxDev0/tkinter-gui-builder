@@ -8,6 +8,8 @@
    abstürzt – über genau den Code hinter Menü und Knöpfen (MainWindow-Methoden).
    Hintergrund: Tk 8.6.13–8.6.16 stürzt unter macOS ab, wenn ein Dateityp eine
    Endung mit Punkt hat (Tk-Ticket 080a28104e).
+5. Gegenprobe: Ein absichtlicher Absturz im Dialogaufruf muss als Fehler
+   erkannt werden – sonst wäre Schritt 4 auf diesem System wertlos.
 
 Aufruf:  python tools/smoke_test.py   (Linux ohne Display: xvfb-run -a …)
 """
@@ -126,12 +128,21 @@ def describe(code: int | None) -> str:
     return f"Exit-Code {code} (0x{code & 0xFFFFFFFF:08X})"
 
 
-def check_dialog(app: Path, kind: str) -> str:
-    """Öffnet einen Dialog in der App; Absturz -> Fehler, offener Dialog -> ok."""
+def check_dialog(app: Path, kind: str, crash: bool = False) -> str:
+    """Öffnet einen Dialog in der App; Absturz -> Fehler, offener Dialog -> ok.
+
+    crash=True baut einen absichtlichen Absturz in den Dialogaufruf ein: os.abort()
+    (SIGABRT wie beim echten macOS-Absturz); unter Windows hartes Beenden mit
+    Code 3, weil abort() dort die Fehlerberichterstattung öffnen und hängen kann.
+    """
+    program = DIALOG_PROGRAM
+    if crash:
+        kill = "os._exit(3)" if sys.platform == "win32" else "os.abort()"
+        program = program.replace("    result = action()", f"    {kill}\n    result = action()")
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         folder = Path(tmp)
         script = folder / f"dialog_{kind}.py"
-        script.write_text(DIALOG_PROGRAM, encoding="utf-8")
+        script.write_text(program, encoding="utf-8")
         started = time.monotonic()
         process = subprocess.Popen([str(app), "--run-script", script.name], cwd=folder,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -195,6 +206,13 @@ def main() -> None:
 
     for kind in DIALOGS:
         print(f"4. {check_dialog(app, kind)}")
+
+    try:
+        check_dialog(app, "save", crash=True)
+    except SystemExit as detected:
+        print(f"5. Gegenprobe ok, Absturz erkannt: {str(detected).splitlines()[0]}")
+    else:
+        raise SystemExit("Gegenprobe: absichtlicher Absturz wurde NICHT erkannt")
     print("Alle Prüfungen bestanden.")
 
 
