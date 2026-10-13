@@ -71,3 +71,75 @@ def has_display() -> bool:
 
 
 requires_display = pytest.mark.skipif(not has_display(), reason="kein Display verfügbar")
+
+
+@pytest.fixture
+def root():
+    """Ein CTk-Hauptfenster für Panel-Tests."""
+    if not has_display():
+        pytest.skip("kein Display verfügbar")
+    import customtkinter as ctk
+
+    window = ctk.CTk()
+    yield window
+    window.destroy()
+
+
+@pytest.fixture
+def app(tmp_path):
+    """Komplettes Builder-Fenster mit dem Kontakt-Beispielprojekt."""
+    if not has_display():
+        pytest.skip("kein Display verfügbar")
+    from ctk_builder.session import Session
+    from ctk_builder.settings import Settings
+    from ctk_builder.ui.main_window import MainWindow
+
+    session = Session()
+    session.replace_project(build_kontakt(), None)
+    window = MainWindow(session, Settings(tmp_path / "settings.json"))
+    window.update()
+    yield window
+    window.runner.stop()
+    window.destroy()
+
+
+@pytest.fixture
+def canvas(root):
+    """Arbeitsfläche allein, mit dem Kontakt-Beispielprojekt."""
+    from ctk_builder.session import Session
+    from ctk_builder.ui.canvas import DesignCanvas
+
+    session = Session()
+    session.replace_project(build_kontakt(), None)
+    root.geometry("800x600")
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    return design
+
+
+def node_named(session, name):
+    return next(w for w in session.project.iter_widgets() if w.name == name)
+
+
+def click(widget, x=3, y=3):
+    """Simuliert einen Mausklick (Enter, Drücken, Loslassen) auf ein Tk-Widget."""
+    root_x, root_y = widget.winfo_rootx() + x, widget.winfo_rooty() + y
+    widget.event_generate("<Enter>", x=x, y=y)
+    widget.event_generate("<Button-1>", x=x, y=y, rootx=root_x, rooty=root_y)
+    widget.event_generate("<ButtonRelease-1>", x=x, y=y, rootx=root_x, rooty=root_y)
+    widget.update()
+
+
+def type_into(entry, text):
+    """Ersetzt den Inhalt eines CTkEntry und bestätigt mit Enter.
+
+    CTkEntry leitet bind() an das innere tkinter.Entry (_entry) weiter, und
+    Tastaturereignisse gehen an das Widget mit Fokus – daher erst fokussieren.
+    """
+    entry.delete(0, "end")
+    entry.insert(0, text)
+    entry._entry.focus_force()
+    entry.update()
+    entry._entry.event_generate("<Return>")
+    entry.update()
