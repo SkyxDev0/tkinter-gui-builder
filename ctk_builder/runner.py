@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Optional
+
+from ctk_builder.cli import RUN_SCRIPT_FLAG
+
+
+def script_command(interpreter: str, script: Path) -> list[str]:
+    """Befehl zum Starten von script.
+
+    In der gebauten App ist sys.executable die App selbst, kein Python: Sie
+    startet Skripte über RUN_SCRIPT_FLAG (siehe cli.run_script).
+    """
+    if getattr(sys, "frozen", False) and interpreter == sys.executable:
+        return [interpreter, RUN_SCRIPT_FLAG, script.name]
+    return [interpreter, "-u", script.name]
 
 
 class ProcessRunner:
@@ -23,8 +38,9 @@ class ProcessRunner:
         self.stop()
         script = Path(script)
         self.process = subprocess.Popen(
-            [interpreter, "-u", script.name],
+            script_command(interpreter, script),
             cwd=script.parent,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},  # Umlaute auch unter Windows
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

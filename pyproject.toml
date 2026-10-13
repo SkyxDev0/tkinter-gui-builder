@@ -1,3 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctk-builder"
+dynamic = ["version"]
+description = "Drag & Drop GUI-Builder für CustomTkinter: GUI im grid()-Layout zusammenklicken und sauberen Python-Code exportieren"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "SkyxDev0" }]
+requires-python = ">=3.10"
+dependencies = ["customtkinter>=6.0,<7"]
+keywords = ["customtkinter", "tkinter", "gui", "gui-builder", "drag-and-drop", "designer"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Natural Language :: German",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: User Interfaces",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+app = ["pyinstaller>=6.10"]
+
+[project.urls]
+Homepage = "https://github.com/SkyxDev0/tkinter-gui-builder"
+Releases = "https://github.com/SkyxDev0/tkinter-gui-builder/releases"
+
+[project.gui-scripts]
+ctk-builder = "ctk_builder.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "ctk_builder.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["ctk_builder*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

@@ -1,3 +1,3 @@
-from ctk_builder.ui.main_window import main
+from ctk_builder.cli import main
 
 main()
