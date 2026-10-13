@@ -8,8 +8,9 @@
    abstürzt – über genau den Code hinter Menü und Knöpfen (MainWindow-Methoden).
    Hintergrund: Tk 8.6.13–8.6.16 stürzt unter macOS ab, wenn ein Dateityp eine
    Endung mit Punkt hat (Tk-Ticket 080a28104e).
-5. Gegenprobe: Ein absichtlicher Absturz im Dialogaufruf muss als Fehler
-   erkannt werden – sonst wäre Schritt 4 auf diesem System wertlos.
+5. Gegenproben: Ein absichtlicher Absturz und ein absichtlicher Fehler
+   (TclError) im Dialogaufruf müssen erkannt werden – sonst wäre Schritt 4
+   auf diesem System wertlos.
 
 Aufruf:  python tools/smoke_test.py   (Linux ohne Display: xvfb-run -a …)
 """
@@ -45,8 +46,10 @@ print("Grüße aus der App", ctk.__version__)
 # Tk-Ereignisschleife; ein Wächter-Thread meldet „offen“ und beendet die App.
 # _tkinter gibt den GIL während Tcl-Aufrufen frei, also läuft der Wächter weiter.
 # Er darf Tk nie anfassen. Statusmeldungen gehen in eine Datei, nicht nach stdout.
+# Eine Ausnahme im Dialogaufruf beendet die App sofort mit „error“ – sonst liefe
+# die Ereignisschleife weiter und der Wächter meldete einen Dialog, den es nie gab.
 DIALOG_PROGRAM = """\
-import os, threading, time
+import os, threading, time, traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -64,7 +67,15 @@ def mark(text):
 from ctk_builder.settings import Settings
 from ctk_builder.ui.main_window import MainWindow
 
+
+def fail(exc, value, tb):
+    text = "".join(traceback.format_exception(exc, value, tb))
+    mark("error " + KIND + " " + text.replace("\\n", " | "))
+    os._exit(2)
+
+
 win = MainWindow(settings=Settings(HERE / "settings.json"))
+win.report_callback_exception = fail
 mark("tk " + str(win.tk.call("info", "patchlevel")))
 
 
@@ -79,7 +90,10 @@ def open_dialog():
     threading.Thread(target=watchdog, daemon=True).start()
     action = {"save": win.save_as, "open": win.open_project,
               "interpreter": win.choose_interpreter}[KIND]
-    result = action()
+    try:
+        result = action()
+    except BaseException as exc:
+        fail(type(exc), exc, exc.__traceback__)
     mark(f"returned {KIND} {result!r}")
     win.destroy()
 
@@ -128,17 +142,25 @@ def describe(code: int | None) -> str:
     return f"Exit-Code {code} (0x{code & 0xFFFFFFFF:08X})"
 
 
-def check_dialog(app: Path, kind: str, crash: bool = False) -> str:
-    """Öffnet einen Dialog in der App; Absturz -> Fehler, offener Dialog -> ok.
+# Gegenproben: ersetzen den Dialogaufruf durch einen absichtlichen Fehler
+CALL = "        result = action()"
+PROBES = {
+    # SIGABRT wie beim echten macOS-Absturz; unter Windows hartes Beenden mit
+    # Code 3, weil abort() dort die Fehlerberichterstattung öffnen und hängen kann
+    "Absturz": "os._exit(3)" if sys.platform == "win32" else "os.abort()",
+    "Fehler": "raise __import__('tkinter').TclError('Gegenprobe')",
+}
 
-    crash=True baut einen absichtlichen Absturz in den Dialogaufruf ein: os.abort()
-    (SIGABRT wie beim echten macOS-Absturz); unter Windows hartes Beenden mit
-    Code 3, weil abort() dort die Fehlerberichterstattung öffnen und hängen kann.
+
+def check_dialog(app: Path, kind: str, probe: str | None = None) -> str:
+    """Öffnet einen Dialog in der App; nur ein offener Dialog ist ok.
+
+    probe: Name aus PROBES – baut statt des Dialogs einen absichtlichen Fehler ein.
     """
     program = DIALOG_PROGRAM
-    if crash:
-        kill = "os._exit(3)" if sys.platform == "win32" else "os.abort()"
-        program = program.replace("    result = action()", f"    {kill}\n    result = action()")
+    if probe:
+        assert CALL in program
+        program = program.replace(CALL, f"        {PROBES[probe]}")
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         folder = Path(tmp)
         script = folder / f"dialog_{kind}.py"
@@ -157,11 +179,16 @@ def check_dialog(app: Path, kind: str, crash: bool = False) -> str:
         status_file = folder / "status.txt"
         lines = status_file.read_text(encoding="utf-8").splitlines() if status_file.exists() else []
     tk = next((line[3:] for line in lines if line.startswith("tk ")), "?")
-    if f"open {kind}" in lines and process.returncode == 0:
+    error = next((line for line in lines if line.startswith("error ")), None)
+    if not error and f"open {kind}" in lines and process.returncode == 0:
         return f"{kind}-Dialog bleibt offen ({elapsed:.0f} s, Tk {tk}) ok"
-    if hung and f"calling {kind}" in lines:
-        return f"{kind}-Dialog bleibt offen (Wächter nicht ausgelöst, Tk {tk}) ok"
-    if any(line.startswith(f"returned {kind}") for line in lines):
+    if error:  # letzte Zeile des Tracebacks, z. B. „_tkinter.TclError: …“
+        last = [part for part in error.split(" | ") if part.strip()][-1]
+        reason = f"Fehler im Dialogaufruf: {last.strip()}"
+    elif hung:
+        # der Wächter läuft, solange die App lebt – ohne „open“ hängt sie fest
+        reason = f"App hängt (nach {DIALOG_TIMEOUT} s beendet, Wächter lief nicht)"
+    elif any(line.startswith(f"returned {kind}") for line in lines):
         reason = "Dialog hat sich von selbst geschlossen, war nie wirklich offen"
     elif f"calling {kind}" in lines:
         reason = f"App ist im Dialog abgestürzt: {describe(process.returncode)}"
@@ -207,12 +234,13 @@ def main() -> None:
     for kind in DIALOGS:
         print(f"4. {check_dialog(app, kind)}")
 
-    try:
-        check_dialog(app, "save", crash=True)
-    except SystemExit as detected:
-        print(f"5. Gegenprobe ok, Absturz erkannt: {str(detected).splitlines()[0]}")
-    else:
-        raise SystemExit("Gegenprobe: absichtlicher Absturz wurde NICHT erkannt")
+    for probe in PROBES:
+        try:
+            check_dialog(app, "save", probe=probe)
+        except SystemExit as detected:
+            print(f"5. Gegenprobe ok, {probe} erkannt: {str(detected).splitlines()[0]}")
+        else:
+            raise SystemExit(f"Gegenprobe: absichtlicher {probe} wurde NICHT erkannt")
     print("Alle Prüfungen bestanden.")
 
 

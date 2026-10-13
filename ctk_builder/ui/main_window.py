@@ -75,8 +75,13 @@ def needs_overwrite_prompt(chosen: str, final: Path) -> bool:
     """True, wenn final schon existiert und der Dialog nicht genau danach gefragt hat."""
     if not final.exists():
         return False
+    asked = Path(chosen)
+    # Nur ein Name, der bis auf Groß-/Kleinschreibung gleich ist, kann dieselbe Datei
+    # sein. samefile() allein irrt auf Laufwerken, die jeder Datei st_ino 0 geben.
+    if asked.parent != final.parent or asked.name.casefold() != final.name.casefold():
+        return True
     try:
-        return not (Path(chosen).exists() and os.path.samefile(chosen, final))
+        return not os.path.samefile(asked, final)
     except OSError:
         return True
 
@@ -321,7 +326,7 @@ class MainWindow(ctk.CTk):
         return self.save() if answer else True
 
     def new_project(self) -> None:
-        if self.confirm_discard():
+        if not self._dialog_open and self.confirm_discard():
             self.session.new()
 
     def _file_dialog(self, ask: Callable[..., Any], **options: Any) -> str:
@@ -329,6 +334,8 @@ class MainWindow(ctk.CTk):
 
         Unter macOS bleiben Menüeinträge während eines modalen Dialogs bedienbar;
         ein zweiter Dialog würde Tks gemeinsamen Dialogzustand überschreiben.
+        Neu, Öffnen und Beenden tun währenddessen nichts – sonst schriebe ein
+        offenes „Speichern unter“ danach das falsche Projekt.
         """
         if self._dialog_open:
             return ""
@@ -339,7 +346,7 @@ class MainWindow(ctk.CTk):
             self._dialog_open = False
 
     def open_project(self) -> None:
-        if not self.confirm_discard():
+        if self._dialog_open or not self.confirm_discard():
             return
         path = self._file_dialog(filedialog.askopenfilename,
                                  **project_dialog_options(save=False))
@@ -408,7 +415,7 @@ class MainWindow(ctk.CTk):
             self.show_status(f"Interpreter: {path}")
 
     def quit_app(self) -> None:
-        if self.confirm_discard():
+        if not self._dialog_open and self.confirm_discard():
             self.runner.stop()
             self.destroy()
 

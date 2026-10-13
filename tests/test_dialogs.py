@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from conftest import requires_display
+from ctk_builder.commands import SetWindowProperty
 from ctk_builder.project_io import SUFFIX
 from ctk_builder.session import Session
 from ctk_builder.settings import Settings
@@ -63,6 +64,16 @@ def test_needs_overwrite_prompt(tmp_path):
     # Dialog hat nach kontakt.json gefragt, geschrieben würde kontakt.ctkb.json
     assert needs_overwrite_prompt(str(tmp_path / "kontakt.json"), final)
     # Dialog hat genau nach dieser Datei gefragt
+    assert not needs_overwrite_prompt(str(final), final)
+
+
+def test_overwrite_prompt_on_drives_without_file_ids(tmp_path, monkeypatch):
+    """Manche Netz-/Cloud-Laufwerke geben jeder Datei st_ino 0 – samefile() irrt dort."""
+    (tmp_path / "kontakt.json").write_text("{}", encoding="utf-8")
+    final = tmp_path / "kontakt.ctkb.json"
+    final.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(main_window.os.path, "samefile", lambda a, b: True)
+    assert needs_overwrite_prompt(str(tmp_path / "kontakt.json"), final)
     assert not needs_overwrite_prompt(str(final), final)
 
 
@@ -149,6 +160,30 @@ def test_no_second_dialog_while_one_is_open(app, tmp_path, monkeypatch):
     monkeypatch.setattr(main_window.filedialog, "asksaveasfilename", dialog)
     assert not app.save_as()
     assert inner == [False]
+
+
+@pytest.mark.parametrize("action", ["new_project", "open_project", "quit_app"])
+def test_no_new_open_or_quit_while_save_dialog_is_open(app, tmp_path, monkeypatch, action):
+    """Menüs bleiben unter macOS im Dialog bedienbar; „Neu“ darf das Projekt nicht tauschen."""
+    app.session.execute(SetWindowProperty("title", "Meine Arbeit"))  # ungespeichert
+    project = app.session.project
+    asked = []
+    monkeypatch.setattr(main_window.messagebox, "askyesnocancel",
+                        lambda *args, **kwargs: asked.append(args) or False)
+    monkeypatch.setattr(main_window.filedialog, "askopenfilename", FakeDialog(""))
+
+    def dialog(**kwargs):
+        getattr(app, action)()  # Menü „Neu“/„Öffnen“/„Beenden“ während des Dialogs
+        return str(tmp_path / "kontakt.json")
+
+    monkeypatch.setattr(main_window.filedialog, "asksaveasfilename", dialog)
+    assert app.save_as()
+    assert asked == []
+    assert app.session.project is project
+    assert app.winfo_exists()
+    saved = Session()
+    saved.open(tmp_path / "kontakt.ctkb.json")
+    assert saved.project.window.title == "Meine Arbeit"
 
 
 @requires_display
