@@ -53,7 +53,7 @@ Linien sind 1-px-`tkinter.Frame`s, die per `place(in_=container_view)` über das
 - Create: `ctk_builder/ui/grid_overlay.py`
 - Test: `tests/test_ui_grid_overlay.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_grid_overlay.py`:
 
@@ -95,13 +95,13 @@ def test_header_click_selects_line_and_plus_adds_column(overlay):
     assert len(overlay._lines) == 14  # eine senkrechte Linie mehr
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_grid_overlay.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.grid_overlay'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/grid_overlay.py`:
 
@@ -244,13 +244,13 @@ class GridOverlay:
         menu.tk_popup(event.x_root, event.y_root)
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_grid_overlay.py -v`
 
 Expected: 3 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/grid_overlay.py tests/test_ui_grid_overlay.py
@@ -266,7 +266,7 @@ git commit -m "feat: Rasterlinien und Zeilen-/Spaltenköpfe"
 - Create: `ctk_builder/ui/drag_drop.py`
 - Test: `tests/test_ui_drag_drop.py`
 
-- [ ] **Step 1: Failing Test schreiben**
+- [x] **Step 1: Failing Test schreiben**
 
 Datei `tests/test_ui_drag_drop.py`:
 
@@ -347,13 +347,13 @@ def test_small_movement_is_a_click(drag):
     assert session.project.find(name.id).layout.row == 0
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_drag_drop.py -v`
 
 Expected: FAIL mit `ModuleNotFoundError: No module named 'ctk_builder.ui.drag_drop'`
 
-- [ ] **Step 3: Implementierung schreiben**
+- [x] **Step 3: Implementierung schreiben**
 
 Datei `ctk_builder/ui/drag_drop.py`:
 
@@ -528,13 +528,13 @@ class DragController:
             bar.place_forget()
 ```
 
-- [ ] **Step 4: Tests ausführen**
+- [x] **Step 4: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_drag_drop.py -v`
 
 Expected: 5 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ctk_builder/ui/drag_drop.py tests/test_ui_drag_drop.py
@@ -548,7 +548,7 @@ git commit -m "feat: Drag & Drop aus der Palette und auf der Arbeitsfläche"
 - Modify: `ctk_builder/ui/main_window.py`
 - Test: `tests/test_ui_main_window.py` (Tests anhängen)
 
-- [ ] **Step 1: Failing Tests an `tests/test_ui_main_window.py` anhängen**
+- [x] **Step 1: Failing Tests an `tests/test_ui_main_window.py` anhängen**
 
 ```python
 def test_arrow_keys_move_selected_widget(app):
@@ -567,13 +567,13 @@ def test_overlay_and_drag_are_wired(app):
     assert app.canvas.on_press == app.drag.press_on_canvas
 ```
 
-- [ ] **Step 2: Test ausführen und Fehlschlag prüfen**
+- [x] **Step 2: Test ausführen und Fehlschlag prüfen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: 2 failed mit `AttributeError: 'MainWindow' object has no attribute 'nudge'` bzw. `'grid_overlay'`
 
-- [ ] **Step 3: Import von `MoveWidget`**
+- [x] **Step 3: Import von `MoveWidget`**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -587,7 +587,7 @@ durch:
 from ctk_builder.commands import DuplicateWidget, MoveWidget, RemoveWidget
 ```
 
-- [ ] **Step 4: Importe der neuen Module**
+- [x] **Step 4: Importe der neuen Module**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -603,7 +603,7 @@ from ctk_builder.ui.drag_drop import DragController
 from ctk_builder.ui.grid_overlay import GridOverlay
 ```
 
-- [ ] **Step 5: Overlay und DragController nach der Arbeitsfläche erzeugen**
+- [x] **Step 5: Overlay und DragController nach der Arbeitsfläche erzeugen**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -621,7 +621,7 @@ durch:
         self.drag = DragController(self.canvas, self.palette)
 ```
 
-- [ ] **Step 6: Pfeiltasten in `_bind_keys` binden**
+- [x] **Step 6: Pfeiltasten in `_bind_keys` binden**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -642,7 +642,7 @@ durch:
             self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
 ```
 
-- [ ] **Step 7: Methode `nudge` vor `duplicate_selected` einfügen**
+- [x] **Step 7: Methode `nudge` vor `duplicate_selected` einfügen**
 
 In `ctk_builder/ui/main_window.py` ersetzen:
 
@@ -667,13 +667,13 @@ durch:
     def duplicate_selected(self) -> None:
 ```
 
-- [ ] **Step 8: Tests ausführen**
+- [x] **Step 8: Tests ausführen**
 
 Run: `.venv/bin/pytest tests/test_ui_main_window.py -v`
 
 Expected: 6 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add ctk_builder/ui/main_window.py tests/test_ui_main_window.py
@@ -683,13 +683,13 @@ git commit -m "feat: Raster, Drag & Drop und Pfeiltasten im Hauptfenster"
 
 ### Task 4: Abschluss Plan 3
 
-- [ ] **Step 1: Komplette Testsuite**
+- [x] **Step 1: Komplette Testsuite**
 
 Run: `.venv/bin/pytest -v` (Linux ohne Display: `xvfb-run -a .venv/bin/pytest -v`)
 
 Expected: `144 passed`
 
-- [ ] **Step 2: Manueller Drag-&-Drop-Test (nur mit Desktop)**
+- [x] **Step 2: Manueller Drag-&-Drop-Test (nur mit Desktop)**
 
 Drag & Drop mit echter Maus lässt sich nicht vollständig automatisiert testen. Run: `.venv/bin/python -m ctk_builder`
 
@@ -705,7 +705,7 @@ Drag & Drop mit echter Maus lässt sich nicht vollständig automatisiert testen.
 
 Gefundene Probleme als eigene Tasks nachtragen und mit Test-first beheben.
 
-- [ ] **Step 3: Pushen**
+- [x] **Step 3: Pushen**
 
 ```bash
 git push
