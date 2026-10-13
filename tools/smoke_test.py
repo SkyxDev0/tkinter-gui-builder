@@ -14,6 +14,7 @@ Aufruf:  python tools/smoke_test.py   (Linux ohne Display: xvfb-run -a …)
 
 from __future__ import annotations
 
+import plistlib
 import signal
 import subprocess
 import sys
@@ -25,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ctk_builder import __version__  # noqa: E402
 from app_paths import app_path  # noqa: E402
+from build import bundle_version  # noqa: E402
 
 PROGRAM = """\
 import customtkinter as ctk
@@ -168,6 +170,13 @@ def main() -> None:
 
     output = run([str(app), "--version"])
     assert __version__ in output, f"Version fehlt in Ausgabe: {output!r}"
+    if sys.platform == "darwin":
+        bundle = app.parents[2]
+        info = plistlib.loads((bundle / "Contents" / "Info.plist").read_bytes())
+        for key in ("CFBundleShortVersionString", "CFBundleVersion"):
+            assert info.get(key) == bundle_version(__version__), f"{key} = {info.get(key)!r}"
+        run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(bundle)])
+        output += " (Info.plist und Signatur ok)"
     print(f"1. Version ok: {output.strip()}")
 
     with tempfile.TemporaryDirectory() as folder:
