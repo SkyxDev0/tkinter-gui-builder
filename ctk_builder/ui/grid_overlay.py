@@ -5,12 +5,9 @@ from __future__ import annotations
 import tkinter
 
 from ctk_builder.commands import InsertLine, RemoveLine
+from ctk_builder.ui import theme
 from ctk_builder.ui.canvas import DesignCanvas
 
-LINE_COLOR = "#6b6b6b"
-HEADER_BG = "#3a3a3a"
-HEADER_ACTIVE_BG = "#1f6aa5"
-HEADER_FG = "#dce4ee"
 HEADER_SIZE = 18
 
 
@@ -32,6 +29,7 @@ class GridOverlay:
         self.session = canvas.session
         self._lines: list[tkinter.Frame] = []
         self._headers: list[tkinter.Widget] = []
+        self.lines_visible = True
         canvas.after_render.append(self.redraw)
         self.session.subscribe_selection(self.redraw_headers)
         self.redraw()
@@ -42,10 +40,16 @@ class GridOverlay:
             line.destroy()
         self._lines.clear()
         project = self.session.project
-        for node in [project.window, *project.iter_widgets()]:
-            if node.is_container:
-                self._draw_lines(node.id, len(node.grid.rows), len(node.grid.columns))
+        if self.lines_visible:
+            for node in [project.window, *project.iter_widgets()]:
+                if node.is_container:
+                    self._draw_lines(node.id, len(node.grid.rows), len(node.grid.columns))
         self.redraw_headers()
+
+    def set_lines_visible(self, visible: bool) -> None:
+        """Rasterlinien ein- oder ausblenden (Köpfe bleiben)."""
+        self.lines_visible = visible
+        self.redraw()
 
     def _draw_lines(self, node_id: str, rows: int, columns: int) -> None:
         view = self.canvas.view_of(node_id)
@@ -61,7 +65,7 @@ class GridOverlay:
             self._line(view, x=left, y=start, width=right - left, height=1)
 
     def _line(self, view: tkinter.Misc, **place: int) -> None:
-        line = tkinter.Frame(self.canvas.surface, bg=LINE_COLOR)
+        line = tkinter.Frame(self.canvas.surface, bg=theme.pick(theme.GRID_LINE))
         line.place(in_=view, **place)
         line.lift()
         self._lines.append(line)
@@ -81,6 +85,7 @@ class GridOverlay:
         view = self.canvas.view_of(container_id)
         origin_x = view.winfo_rootx() - self.canvas.winfo_rootx()
         origin_y = view.winfo_rooty() - self.canvas.winfo_rooty()
+        anchor_x, anchor_y = self.canvas.header_anchor(container_id)
         selected = session.selected_line
 
         for axis in ("column", "row"):
@@ -88,7 +93,8 @@ class GridOverlay:
             edges = line_edges(view, axis, len(lines))
             for index, (start, size) in enumerate(edges):
                 active = selected == (container_id, axis, index)
-                text = f"{index} ⚖{lines[index].weight}"
+                # Zeilenköpfe sind schmal: dort nur der Index
+                text = f"{index} ⚖{lines[index].weight}" if axis == "column" else str(index)
                 header = self._header(text, active)
                 header.bind("<Button-1>", lambda e, a=axis, i=index:
                             session.select_line(container_id, a, i))
@@ -97,26 +103,32 @@ class GridOverlay:
                 header.bind("<Button-3>", lambda e, a=axis, i=index:
                             self._context_menu(e, container_id, a, i))
                 if axis == "column":
-                    header.place(x=origin_x + start, y=origin_y - HEADER_SIZE,
-                                 width=max(size, 1), height=HEADER_SIZE - 2)
+                    header.place(x=origin_x + start + 1, y=anchor_y - HEADER_SIZE - 2,
+                                 width=max(size - 2, 1), height=HEADER_SIZE - 2)
                 else:
-                    header.place(x=origin_x - HEADER_SIZE, y=origin_y + start,
-                                 width=HEADER_SIZE - 2, height=max(size, 1))
+                    header.place(x=anchor_x - HEADER_SIZE - 2, y=origin_y + start + 1,
+                                 width=HEADER_SIZE - 2, height=max(size - 2, 1))
             end = edges[-1][0] + edges[-1][1]
-            plus = self._header("+", False)
+            plus = self._header("+", False, plus=True)
             plus.bind("<Button-1>", lambda e, a=axis, n=len(lines):
                       session.execute(InsertLine(container_id, a, n)))
             if axis == "column":
-                plus.place(x=origin_x + end + 2, y=origin_y - HEADER_SIZE,
+                plus.place(x=origin_x + end + 2, y=anchor_y - HEADER_SIZE - 2,
                            width=HEADER_SIZE, height=HEADER_SIZE - 2)
             else:
-                plus.place(x=origin_x - HEADER_SIZE, y=origin_y + end + 2,
+                plus.place(x=anchor_x - HEADER_SIZE - 2, y=origin_y + end + 2,
                            width=HEADER_SIZE - 2, height=HEADER_SIZE)
 
-    def _header(self, text: str, active: bool) -> tkinter.Label:
+    def _header(self, text: str, active: bool, plus: bool = False) -> tkinter.Label:
+        if active:
+            bg, fg = theme.ACCENT, ("#ffffff", "#ffffff")
+        elif plus:
+            bg, fg = theme.ACCENT_SOFT, theme.ACCENT_TEXT
+        else:
+            bg, fg = theme.HEADER_BG, theme.MUTED
         header = tkinter.Label(
-            self.canvas, text=text, font=("TkDefaultFont", 9),
-            bg=HEADER_ACTIVE_BG if active else HEADER_BG, fg=HEADER_FG,
+            self.canvas, text=text, font=theme.tk_font(10, "bold" if plus else "normal"),
+            bg=theme.pick(bg), fg=theme.pick(fg), cursor="hand2",
         )
         self._headers.append(header)
         return header

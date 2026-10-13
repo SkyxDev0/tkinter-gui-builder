@@ -8,10 +8,7 @@ import customtkinter as ctk
 
 from ctk_builder.model import Node
 from ctk_builder.session import Session
-
-DARK = {"bg": "#2b2b2b", "fg": "#dce4ee", "sel": "#1f6aa5"}
-LIGHT = {"bg": "#f2f2f2", "fg": "#1a1a1a", "sel": "#3a7ebf"}
-
+from ctk_builder.ui import theme
 
 def node_label(node: Node) -> str:
     if node.id == "window":
@@ -21,30 +18,33 @@ def node_label(node: Node) -> str:
 
 class StructureTree(ctk.CTkFrame):
     def __init__(self, master, session: Session):
-        super().__init__(master)
+        super().__init__(master, fg_color="transparent")
         self.session = session
         self._updating = False
-        ctk.CTkLabel(self, text="Struktur", font=ctk.CTkFont(weight="bold")).pack(
-            anchor="w", padx=8, pady=(8, 4))
+        ctk.CTkLabel(self, text="Struktur", font=theme.font(15, "bold"),
+                     text_color=theme.TEXT, anchor="w").pack(fill="x", padx=14, pady=(14, 0))
+        ctk.CTkLabel(self, text="Alle Widgets des Fensters", font=theme.font(12),
+                     text_color=theme.MUTED, anchor="w").pack(fill="x", padx=14, pady=(0, 8))
         self._style()
         self.tree = ttk.Treeview(self, show="tree", selectmode="browse",
                                  style="Builder.Treeview")
-        self.tree.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.tree.pack(fill="both", expand=True, padx=8, pady=(0, 10))
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         session.subscribe(self.refresh)
         session.subscribe_selection(self._show_selection)
         self.refresh()
 
     def _style(self) -> None:
-        colors = DARK if ctk.get_appearance_mode() == "Dark" else LIGHT
+        background = theme.pick(theme.CARD)
         style = ttk.Style(self)
         style.theme_use("default")
-        style.configure("Builder.Treeview", background=colors["bg"],
-                        fieldbackground=colors["bg"], foreground=colors["fg"],
-                        borderwidth=0, rowheight=24)
+        style.layout("Builder.Treeview", [("Builder.Treeview.treearea", {"sticky": "nswe"})])
+        style.configure("Builder.Treeview", background=background,
+                        fieldbackground=background, foreground=theme.pick(theme.TEXT),
+                        borderwidth=0, rowheight=30, indent=16, font=theme.tk_font(13))
         style.map("Builder.Treeview",
-                  background=[("selected", colors["sel"])],
-                  foreground=[("selected", "#ffffff")])
+                  background=[("selected", theme.pick(theme.ACCENT_SOFT))],
+                  foreground=[("selected", theme.pick(theme.ACCENT_TEXT))])
 
     def refresh(self) -> None:
         self._updating = True

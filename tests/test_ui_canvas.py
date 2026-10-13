@@ -88,3 +88,22 @@ def test_empty_containers_have_measurable_cells(root):
     assert view.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
     # der leere Frame behält seine Größe wie im echten Programm
     assert view.winfo_height() > EMPTY_LINE_MIN
+
+
+def test_backdrop_and_title_bar_select_window(canvas):
+    session = canvas.session
+    label = node_named(session, "label_name")
+    session.select(label.id)
+    click(canvas.backdrop, x=canvas.backdrop.winfo_width() - 5,
+          y=canvas.backdrop.winfo_height() - 5)
+    assert session.selected_id == "window"
+    session.select(label.id)
+    click(canvas.titlebar, x=100, y=10)
+    assert session.selected_id == "window"
+
+
+def test_title_bar_shows_title_and_size(canvas):
+    bar = canvas.titlebar
+    texts = [bar.itemcget(item, "text") for item in bar.find_all() if bar.type(item) == "text"]
+    assert "Kontakt" in texts
+    assert "420 × 260" in texts

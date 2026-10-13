@@ -25,3 +25,23 @@ def test_palette_adds_into_selected_frame(root):
     session.select(frame.node_id)
     palette.add("CTkLabel")
     assert session.project.find(frame.node_id).children[0].name == "label_1"
+
+
+def test_palette_search_filters_tiles(root):
+    palette = Palette(root, Session())
+    palette.pack()
+    assert palette.filter("box") == ["CTkTextbox", "CTkCheckBox"]
+    root.update()
+    assert palette.buttons["CTkTextbox"].winfo_ismapped()
+    assert not palette.buttons["CTkButton"].winfo_ismapped()
+    assert palette.filter("") == list(SPECS)
+
+
+def test_click_on_tile_border_adds_too(root):
+    """Auch der Kachelhintergrund (internes Canvas von CTkFrame) reagiert auf Klicks."""
+    session = Session()
+    palette = Palette(root, session)
+    palette.pack()
+    root.update()
+    click(palette.buttons["CTkSwitch"]._canvas, x=2, y=2)
+    assert [w.type for w in session.project.iter_widgets()] == ["CTkSwitch"]

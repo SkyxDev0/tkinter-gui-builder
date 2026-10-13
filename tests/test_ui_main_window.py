@@ -78,3 +78,25 @@ def test_keys_reach_canvas_after_click(app):
     assert session.project.find(switch.node_id).layout.column == 1
     app.canvas.event_generate("<Delete>")
     assert session.project.find(switch.node_id) is None
+
+
+def test_rail_switches_side_panel(app):
+    app.update()
+    assert app.palette.winfo_ismapped() and not app.tree.winfo_ismapped()
+    app.rail_items["tree"].command()
+    app.update()
+    assert app.tree.winfo_ismapped() and not app.palette.winfo_ismapped()
+    assert app.rail_items["tree"].active and not app.rail_items["widgets"].active
+
+
+def test_header_and_canvas_toolbar(app):
+    session = app.session
+    assert app.project_label.cget("text") == "Unbenannt"
+    label = node_named(session, "label_mail")
+    session.select(label.id)
+    app.toolbar_buttons["delete"].invoke()
+    assert session.project.find(label.id) is None
+    assert app.project_label.cget("text") == "Unbenannt  ·  ungespeichert"
+    app.toolbar_buttons["grid"].invoke()
+    assert app.grid_overlay._lines == []
+    assert not app.toolbar_buttons["grid"].active

@@ -7,11 +7,13 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ctk_builder.commands import AddWidget, MoveWidget
+from ctk_builder.ui import theme
 from ctk_builder.ui.canvas import EMPTY_LINE_MIN, DesignCanvas
 from ctk_builder.ui.palette import Palette
+from ctk_builder.ui.widgets import add_bindtag
 
 DRAG_THRESHOLD = 5  # Pixel, ab denen aus einem Klick ein Ziehen wird
-TARGET_COLOR = "#2fa572"
+TARGET_COLOR = theme.DROP
 
 
 @dataclass(frozen=True)
@@ -71,13 +73,7 @@ class DragController:
         button.bind_class(tag, "<Button-1>", lambda e: self._begin(e, widget_type=widget_type))
         button.bind_class(tag, "<B1-Motion>", self.motion)
         button.bind_class(tag, "<ButtonRelease-1>", self.release)
-
-        def add_tag(widget: tkinter.Misc) -> None:
-            widget.bindtags((tag, *widget.bindtags()))
-            for child in widget.winfo_children():
-                add_tag(child)
-
-        add_tag(button)
+        add_bindtag(button, tag)
 
     def press_on_canvas(self, node_id: str, event: tkinter.Event) -> None:
         if node_id != "window":

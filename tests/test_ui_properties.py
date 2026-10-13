@@ -1,5 +1,7 @@
+import customtkinter as ctk
+
 from conftest import type_into
-from ctk_builder.commands import AddWidget
+from ctk_builder.commands import AddWidget, SetProperty
 from ctk_builder.session import Session
 from ctk_builder.ui.properties import ERROR_BORDER, PropertiesPanel
 
@@ -62,3 +64,39 @@ def test_properties_window_and_line(root):
     session.select_line("window", "column", 0)
     type_into(panel.fields["weight"], "2")
     assert session.project.window.grid.columns[0].weight == 2
+
+
+def test_sections_collapse_and_stay_collapsed(root):
+    session = Session()
+    panel = PropertiesPanel(root, session)
+    panel.pack()
+    label = AddWidget("window", "CTkLabel")
+    session.execute(label)
+    session.select(label.node_id)
+    assert panel.title_label.cget("text") == "label_1"
+    assert panel.subtitle_label.cget("text") == "CTkLabel"
+    panel.sections["layout"][0].invoke()  # Kopf des Abschnitts anklicken
+    root.update()
+    assert not panel.sections["layout"][1].winfo_ismapped()
+    session.execute(SetProperty(label.node_id, "text", "Hallo"))  # Neuaufbau
+    root.update()
+    assert not panel.sections["layout"][1].winfo_ismapped()
+    assert panel.sections["widget"][1].winfo_ismapped()
+    panel.sections["layout"][0].invoke()
+    root.update()
+    assert panel.sections["layout"][1].winfo_ismapped()
+
+
+def test_short_choices_are_segments(root):
+    session = Session()
+    panel = PropertiesPanel(root, session)
+    button = AddWidget("window", "CTkButton")
+    session.execute(button)
+    session.select(button.node_id)
+    assert isinstance(panel.fields["state"], ctk.CTkSegmentedButton)
+    panel.fields["state"]._command("disabled")
+    assert session.project.find(button.node_id).props["state"] == "disabled"
+    label = AddWidget("window", "CTkLabel")
+    session.execute(label)
+    session.select(label.node_id)
+    assert isinstance(panel.fields["anchor"], ctk.CTkOptionMenu)  # 9 Werte

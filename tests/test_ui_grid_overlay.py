@@ -33,3 +33,18 @@ def test_header_click_selects_line_and_plus_adds_column(overlay):
     plus.event_generate("<Button-1>")
     assert len(session.project.window.grid.columns) == 3
     assert len(overlay._lines) == 14  # eine senkrechte Linie mehr
+
+
+def test_lines_can_be_hidden(overlay):
+    overlay.set_lines_visible(False)
+    assert overlay._lines == []
+    assert len(overlay._headers) == 8  # Köpfe bleiben
+    overlay.set_lines_visible(True)
+    assert len(overlay._lines) == 13
+
+
+def test_window_headers_sit_above_title_bar(overlay):
+    canvas = overlay.canvas
+    chrome_top = canvas.chrome.winfo_rooty() - canvas.winfo_rooty()
+    column_header = overlay._headers[0]
+    assert column_header.winfo_y() + column_header.winfo_height() <= chrome_top

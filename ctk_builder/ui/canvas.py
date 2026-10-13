@@ -15,11 +15,15 @@ import customtkinter as ctk
 
 from ctk_builder.model import Node, WidgetNode
 from ctk_builder.session import Session
+from ctk_builder.ui import theme
 from ctk_builder.widget_specs import GROUP, HANDLER, SPECS
 
 EMPTY_LINE_MIN = 40  # Mindestgröße leerer Zeilen/Spalten, nur im Builder
-SELECT_COLOR = "#f5a623"
-MARGIN = 24
+SELECT_COLOR = theme.SELECT
+MARGIN = 44          # Abstand des Fensterrahmens; Platz für Zeilen-/Spaltenköpfe
+BACKDROP_STEP = 24   # Rasterweite des Hintergrunds
+TITLEBAR_HEIGHT = 30
+TRAFFIC_LIGHTS = ("#ff5f57", "#febc2e", "#28c840")
 BLOCKED_EVENTS = ("<Button-1>", "<ButtonRelease-1>", "<B1-Motion>",
                   "<Double-Button-1>", "<Button-2>", "<Button-3>",
                   "<Enter>", "<Leave>", "<Motion>")
@@ -50,11 +54,28 @@ def used_lines(node: Node, axis: str) -> set[int]:
 
 class DesignCanvas(ctk.CTkFrame):
     def __init__(self, master, session: Session):
-        super().__init__(master, fg_color=("gray85", "gray12"), corner_radius=0)
+        super().__init__(master, fg_color=theme.CANVAS_BG, corner_radius=0)
         self.session = session
-        self.surface = ctk.CTkFrame(self, corner_radius=0, border_width=1)
-        self.surface.place(x=MARGIN, y=MARGIN)
+        # Hintergrund mit Raster; Klick daneben wählt das Fenster
+        self.backdrop = tkinter.Canvas(self, bg=theme.pick(theme.CANVAS_BG),
+                                       highlightthickness=0, bd=0)
+        self.backdrop.place(x=0, y=0, relwidth=1, relheight=1)
+        self.backdrop.bind("<Configure>", lambda e: self._draw_backdrop())
+        # Fensterrahmen mit Titelleiste; darin die eigentliche Fläche (surface)
+        self.chrome = ctk.CTkFrame(self, fg_color=theme.CHROME, corner_radius=10,
+                                   border_width=1, border_color=theme.BORDER)
+        self.chrome.place(x=MARGIN, y=MARGIN)
+        self.titlebar = tkinter.Canvas(self.chrome, width=1, height=TITLEBAR_HEIGHT,
+                                       bg=theme.pick(theme.CHROME), highlightthickness=0, bd=0)
+        self.titlebar.pack(fill="x", padx=8, pady=(4, 0))
+        self.titlebar.bind("<Configure>", lambda e: self._draw_titlebar())
+        self.surface = ctk.CTkFrame(self.chrome, corner_radius=0, border_width=0,
+                                    fg_color=ctk.ThemeManager.theme["CTk"]["fg_color"])
+        self.surface.pack(padx=8, pady=(0, 8))
         self.surface.grid_propagate(False)
+        for part in (self.backdrop, *tkinter.Misc.winfo_children(self.chrome)):
+            if part is not self.surface:
+                part.bind("<Button-1>", lambda e: self.session.select("window"))
         self.views: dict[str, tkinter.Misc] = {}  # Knoten-ID -> Tk-Widget
         self._placeholders: list[tkinter.Frame] = []
         self._tags: dict[str, str] = {}
@@ -75,6 +96,39 @@ class DesignCanvas(ctk.CTkFrame):
     def view_of(self, node_id: str) -> tkinter.Misc:
         return self.surface if node_id == "window" else self.views[node_id]
 
+    def header_anchor(self, node_id: str) -> tuple[int, int]:
+        """Ecke, an der die Zeilen-/Spaltenköpfe eines Containers anliegen.
+
+        Beim Fenster ist das der Rahmen samt Titelleiste, sonst die Ansicht selbst.
+        Koordinaten relativ zur Arbeitsfläche.
+        """
+        view = self.chrome if node_id == "window" else self.view_of(node_id)
+        return view.winfo_rootx() - self.winfo_rootx(), view.winfo_rooty() - self.winfo_rooty()
+
+    def _draw_backdrop(self) -> None:
+        canvas = self.backdrop
+        canvas.delete("all")
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        color = theme.pick(theme.CANVAS_GRID)
+        for x in range(0, width, BACKDROP_STEP):
+            canvas.create_line(x, 0, x, height, fill=color)
+        for y in range(0, height, BACKDROP_STEP):
+            canvas.create_line(0, y, width, y, fill=color)
+
+    def _draw_titlebar(self) -> None:
+        canvas = self.titlebar
+        canvas.delete("all")
+        window = self.session.project.window
+        middle = TITLEBAR_HEIGHT / 2
+        for i, color in enumerate(TRAFFIC_LIGHTS):
+            x = 8 + i * 18
+            canvas.create_oval(x - 6, middle - 6, x + 6, middle + 6, fill=color, outline="")
+        width = canvas.winfo_width()
+        canvas.create_text(width / 2, middle, text=window.title, fill=theme.pick(theme.TEXT),
+                           font=theme.tk_font(12, "bold"))
+        canvas.create_text(width - 4, middle, text=f"{window.width} × {window.height}",
+                           anchor="e", fill=theme.pick(theme.MUTED), font=theme.tk_font(11))
+
     def render(self) -> None:
         window = self.session.project.window
         for widget in [*self._placeholders, *self.views.values()]:
@@ -82,6 +136,7 @@ class DesignCanvas(ctk.CTkFrame):
         self._placeholders.clear()
         self.views.clear()
         self.surface.configure(width=window.width, height=window.height)
+        self._draw_titlebar()
         self._configure_grid(self.surface, window)
         for child in window.children:
             self._create(child, self.surface)
