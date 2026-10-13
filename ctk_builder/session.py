@@ -117,11 +117,12 @@ class Session:
         self.replace_project(project_io.load(path), Path(path))
 
     def save(self, path: Optional[Path] = None) -> None:
-        if path is not None:
-            self.path = Path(path)
-        if self.path is None:
+        """Speichert; den Pfad übernimmt die Session erst, wenn das Schreiben klappt."""
+        target = Path(path) if path is not None else self.path
+        if target is None:
             raise ValueError("Kein Speicherort gewählt")
-        project_io.save(self.project, self.path)
+        project_io.save(self.project, target)
+        self.path = target
         self.stack.mark_saved()
         self._changed()
 

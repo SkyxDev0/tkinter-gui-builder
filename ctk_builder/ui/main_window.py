@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import tkinter
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
@@ -30,6 +31,59 @@ from ctk_builder.ui.widgets import IconButton, RailItem
 MOD = "Command" if sys.platform == "darwin" else "Control"
 MOD_LABEL = "Cmd" if sys.platform == "darwin" else "Strg"
 FILETYPES = [("CTk Builder Projekt", f"*{SUFFIX}")]
+# Tk 8.6.13–8.6.16 stürzt unter macOS ab, sobald eine Dateiendung einen Punkt
+# enthält: [UTType typeWithFilenameExtension:@"ctkb.json"] ist nil (Tk-Ticket
+# 080a28104e). Dort daher nur die einfache Endung; project_path() ergänzt den Rest.
+MAC_FILETYPES = [("CTk Builder Projekt", "*.json")]
+PLATFORM = sys.platform  # in Tests ersetzbar (sys.platform selbst nicht: CTk liest es)
+
+
+def project_dialog_options(save: bool, initialfile: str = "",
+                           platform: Optional[str] = None) -> dict[str, Any]:
+    """Optionen für den Öffnen-/Speichern-Dialog von Projektdateien."""
+    platform = PLATFORM if platform is None else platform
+    if platform == "darwin":
+        # auch kein defaultextension: ohne filetypes landet es im selben Absturz
+        options: dict[str, Any] = {"filetypes": MAC_FILETYPES}
+    else:
+        options = {"filetypes": FILETYPES}
+        if save:
+            options["defaultextension"] = SUFFIX
+    if save and initialfile:
+        options["initialfile"] = initialfile
+    return options
+
+
+def project_path(chosen: str) -> Path:
+    """Gewählter Dateiname -> Projektdatei mit Endung .ctkb.json.
+
+    „kontakt“, „kontakt.json“ und „kontakt.ctkb“ werden zu „kontakt.ctkb.json“;
+    Groß-/Kleinschreibung der Endung spielt keine Rolle.
+    """
+    path = Path(chosen)
+    stem = path.name
+    if stem.lower().endswith(SUFFIX):
+        stem = stem[: -len(SUFFIX)]
+    else:
+        for ending in (".json", ".ctkb"):
+            if stem.lower().endswith(ending):
+                stem = stem[: -len(ending)]
+    return path.with_name(stem + SUFFIX)
+
+
+def needs_overwrite_prompt(chosen: str, final: Path) -> bool:
+    """True, wenn final schon existiert und der Dialog nicht genau danach gefragt hat."""
+    if not final.exists():
+        return False
+    asked = Path(chosen)
+    # Nur ein Name, der bis auf Groß-/Kleinschreibung gleich ist, kann dieselbe Datei
+    # sein. samefile() allein irrt auf Laufwerken, die jeder Datei st_ino 0 geben.
+    if asked.parent != final.parent or asked.name.casefold() != final.name.casefold():
+        return True
+    try:
+        return not os.path.samefile(asked, final)
+    except OSError:
+        return True
 
 
 class MainWindow(ctk.CTk):
@@ -39,6 +93,7 @@ class MainWindow(ctk.CTk):
         self.session = session or Session()
         self.settings = settings or Settings()
         self.runner = ProcessRunner()
+        self._dialog_open = False
         self.geometry("1360x860")
         self.minsize(1040, 660)
 
@@ -87,6 +142,10 @@ class MainWindow(ctk.CTk):
 
         self._bind_keys()
         self.protocol("WM_DELETE_WINDOW", self.quit_app)
+        if PLATFORM == "darwin":
+            # Cmd+Q, „Beenden“ im App-Menü und im Dock: ohne diesen Handler beendet
+            # Tk sofort (Tcl_Exit) – ohne Nachfrage nach ungespeicherten Änderungen
+            self.createcommand("::tk::mac::Quit", self.quit_app)
         self.show_panel("widgets")
         self.update_title()
 
@@ -182,8 +241,7 @@ class MainWindow(ctk.CTk):
 
     def _build_menu(self) -> None:
         """Menüs für die Kopfzeile; auf macOS zusätzlich in der Systemmenüleiste."""
-        on_mac = sys.platform == "darwin"
-        menubar = tkinter.Menu(self) if on_mac else None
+        menubar = tkinter.Menu(self) if PLATFORM == "darwin" else None
         parent = menubar or self
         file_menu = tkinter.Menu(parent, tearoff=False)
         file_menu.add_command(label="Neu", accelerator=f"{MOD_LABEL}+N", command=self.new_project)
@@ -268,13 +326,30 @@ class MainWindow(ctk.CTk):
         return self.save() if answer else True
 
     def new_project(self) -> None:
-        if self.confirm_discard():
+        if not self._dialog_open and self.confirm_discard():
             self.session.new()
 
+    def _file_dialog(self, ask: Callable[..., Any], **options: Any) -> str:
+        """Öffnet einen Dateidialog; nie zwei gleichzeitig.
+
+        Unter macOS bleiben Menüeinträge während eines modalen Dialogs bedienbar;
+        ein zweiter Dialog würde Tks gemeinsamen Dialogzustand überschreiben.
+        Neu, Öffnen und Beenden tun währenddessen nichts – sonst schriebe ein
+        offenes „Speichern unter“ danach das falsche Projekt.
+        """
+        if self._dialog_open:
+            return ""
+        self._dialog_open = True
+        try:
+            return ask(parent=self, **options) or ""
+        finally:
+            self._dialog_open = False
+
     def open_project(self) -> None:
-        if not self.confirm_discard():
+        if self._dialog_open or not self.confirm_discard():
             return
-        path = filedialog.askopenfilename(parent=self, filetypes=FILETYPES)
+        path = self._file_dialog(filedialog.askopenfilename,
+                                 **project_dialog_options(save=False))
         if not path:
             return
         try:
@@ -285,20 +360,29 @@ class MainWindow(ctk.CTk):
     def save(self) -> bool:
         if self.session.path is None:
             return self.save_as()
-        self.session.save()
-        self.show_status(f"Gespeichert: {self.session.path.name}")
-        return True
+        return self._write(None)
 
     def save_as(self) -> bool:
-        path = filedialog.asksaveasfilename(
-            parent=self, filetypes=FILETYPES, defaultextension=SUFFIX,
-            initialfile=f"{self.session.project.window.class_name.lower()}{SUFFIX}")
-        if not path:
+        initialfile = f"{self.session.project.window.class_name.lower()}{SUFFIX}"
+        chosen = self._file_dialog(filedialog.asksaveasfilename,
+                                   **project_dialog_options(save=True, initialfile=initialfile))
+        if not chosen:
             return False
-        if not path.endswith(SUFFIX):
-            path = path.removesuffix(".json") + SUFFIX
-        self.session.save(Path(path))
-        self.show_status(f"Gespeichert: {Path(path).name}")
+        path = project_path(chosen)
+        # Der Dialog hat nur nach dem gewählten Namen gefragt, nicht nach dem ergänzten
+        if needs_overwrite_prompt(chosen, path) and not messagebox.askyesno(
+                "Speichern unter", f"„{path.name}“ existiert bereits.\nErsetzen?",
+                icon="warning", parent=self):
+            return False
+        return self._write(path)
+
+    def _write(self, path: Optional[Path]) -> bool:
+        try:
+            self.session.save(path)
+        except OSError as exc:
+            messagebox.showerror("Speichern fehlgeschlagen", str(exc), parent=self)
+            return False
+        self.show_status(f"Gespeichert: {self.session.path.name}")
         return True
 
     def export(self) -> Optional[exporter.ExportResult]:
@@ -325,13 +409,13 @@ class MainWindow(ctk.CTk):
             self.console.write(f"Start fehlgeschlagen: {exc}\n")
 
     def choose_interpreter(self) -> None:
-        path = filedialog.askopenfilename(parent=self, title="Python-Interpreter wählen")
+        path = self._file_dialog(filedialog.askopenfilename, title="Python-Interpreter wählen")
         if path:
             self.settings.interpreter = path
             self.show_status(f"Interpreter: {path}")
 
     def quit_app(self) -> None:
-        if self.confirm_discard():
+        if not self._dialog_open and self.confirm_discard():
             self.runner.stop()
             self.destroy()
 
