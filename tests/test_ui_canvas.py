@@ -1,6 +1,7 @@
 from conftest import click, node_named
 from ctk_builder.commands import AddWidget
-from ctk_builder.ui.canvas import widget_kwargs
+from ctk_builder.session import Session
+from ctk_builder.ui.canvas import EMPTY_LINE_MIN, DesignCanvas, widget_kwargs
 
 
 def test_widget_kwargs_skip_defaults_and_code_only_props(canvas):
@@ -72,3 +73,18 @@ def test_click_on_empty_area_of_frames_selects_them(canvas):
     click_screen(canvas, surface.winfo_rootx() + 410, surface.winfo_rooty() + 250)
     assert session.selected_id == "window"
 
+
+def test_empty_containers_have_measurable_cells(root):
+    """Ohne Kinder berechnet Tk kein Raster; leere Zellen müssen trotzdem messbar sein."""
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    assert design.surface.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    frame = AddWidget("window", "CTkFrame", 0, 1)
+    session.execute(frame)
+    root.update()
+    view = design.views[frame.node_id]
+    assert view.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    # der leere Frame behält seine Größe wie im echten Programm
+    assert view.winfo_height() > EMPTY_LINE_MIN

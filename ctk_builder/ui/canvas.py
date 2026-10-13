@@ -56,6 +56,7 @@ class DesignCanvas(ctk.CTkFrame):
         self.surface.place(x=MARGIN, y=MARGIN)
         self.surface.grid_propagate(False)
         self.views: dict[str, tkinter.Misc] = {}  # Knoten-ID -> Tk-Widget
+        self._placeholders: list[tkinter.Frame] = []
         self._tags: dict[str, str] = {}
         # Erweiterungen (Raster, Drag & Drop) hängen sich hier ein:
         self.after_render: list[Callable[[], None]] = []
@@ -76,8 +77,9 @@ class DesignCanvas(ctk.CTkFrame):
 
     def render(self) -> None:
         window = self.session.project.window
-        for view in self.views.values():
-            view.destroy()
+        for widget in [*self._placeholders, *self.views.values()]:
+            widget.destroy()
+        self._placeholders.clear()
         self.views.clear()
         self.surface.configure(width=window.width, height=window.height)
         self._configure_grid(self.surface, window)
@@ -102,6 +104,14 @@ class DesignCanvas(ctk.CTkFrame):
                 minsize = config.minsize if index in used else max(config.minsize, EMPTY_LINE_MIN)
                 configure(index, weight=config.weight, minsize=minsize,
                           uniform=config.uniform)
+        if not node.children:
+            # Ohne Kinder berechnet Tk kein Raster (grid_bbox = 0 0 0 0): Ein
+            # unsichtbarer Platzhalter macht die leeren Zellen messbar und sichtbar
+            placeholder = tkinter.Frame(view, width=0, height=0)
+            placeholder.grid(row=0, column=0)
+            placeholder.lower()
+            self._placeholders.append(placeholder)
+            view.grid_propagate(False)  # leerer Frame behält seine Größe wie im Programm
 
     def _create(self, node: WidgetNode, master: tkinter.Misc) -> None:
         view = getattr(ctk, node.type)(master, **widget_kwargs(node))

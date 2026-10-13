@@ -833,3 +833,117 @@ Expected: `146 passed`
 git add ctk_builder/ui/canvas.py ctk_builder/ui/main_window.py tests/test_ui_canvas.py tests/test_ui_main_window.py docs/superpowers/plans/2026-10-13-ctk-builder-3-arbeitsflaeche.md
 git commit -m "fix: Klicks und Tasten auf CTkFrame-Flächen der Arbeitsfläche"
 ```
+
+
+### Task 6: Leere Container messbar machen (nachgetragen)
+
+Ebenfalls beim manuellen Test gefunden: Hat ein Container noch **keine Kinder**, berechnet Tk
+für ihn gar kein Raster – `grid_bbox()` liefert `0 0 0 0`, und `grid_location()` liefert für
+jeden Punkt `(1, 1)`, obwohl die Zeilen/Spalten mit `minsize=40` konfiguriert sind. Folgen in
+jedem neuen Projekt und in jedem leeren Frame: keine Rasterlinien, Köpfe nur 1 px breit,
+unsichtbarer Zielrahmen, und jeder Drop hängt eine Zeile und Spalte an (Widget landet in
+(1, 1), Zeile 0 und Spalte 0 bleiben leer). Abhilfe: ein unsichtbarer Platzhalter in Zelle
+(0, 0) jedes leeren Containers. Damit ein leerer Frame dadurch nicht auf 40 × 40 schrumpft
+(im echten Programm ist er 200 × 200), wird bei ihm `grid_propagate(False)` gesetzt.
+
+**Files:**
+- Modify: `ctk_builder/ui/canvas.py`
+- Test: `tests/test_ui_canvas.py`, `tests/test_ui_drag_drop.py` (Tests anhängen)
+
+- [x] **Step 1: Failing Tests anhängen**
+
+An `tests/test_ui_canvas.py` anhängen (Importe oben: `from ctk_builder.session import Session`,
+`from ctk_builder.ui.canvas import EMPTY_LINE_MIN, DesignCanvas, widget_kwargs`):
+
+```python
+def test_empty_containers_have_measurable_cells(root):
+    """Ohne Kinder berechnet Tk kein Raster; leere Zellen müssen trotzdem messbar sein."""
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    assert design.surface.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    frame = AddWidget("window", "CTkFrame", 0, 1)
+    session.execute(frame)
+    root.update()
+    view = design.views[frame.node_id]
+    assert view.grid_bbox(0, 0) == (0, 0, EMPTY_LINE_MIN, EMPTY_LINE_MIN)
+    # der leere Frame behält seine Größe wie im echten Programm
+    assert view.winfo_height() > EMPTY_LINE_MIN
+```
+
+An `tests/test_ui_drag_drop.py` anhängen (Importe oben: `from ctk_builder.session import Session`,
+`from ctk_builder.ui.canvas import DesignCanvas`):
+
+```python
+def test_drop_target_in_empty_window(root):
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    surface = design.surface
+    target = drop_target(design, surface.winfo_rootx() + 10, surface.winfo_rooty() + 10)
+    assert target == DropTarget("window", 0, 0)
+```
+
+- [x] **Step 2: Tests ausführen und Fehlschlag prüfen**
+
+Run: `.venv/bin/pytest tests/test_ui_canvas.py tests/test_ui_drag_drop.py -v`
+
+Expected: 2 failed (`(0, 0, 0, 0) == (0, 0, 40, 40)` bzw. Ziel `row=1, column=1`)
+
+- [x] **Step 3: Platzhalter in `ctk_builder/ui/canvas.py`**
+
+In `__init__` nach `self.views: dict[...] = {}` ergänzen:
+
+```python
+        self._placeholders: list[tkinter.Frame] = []
+```
+
+In `render()` ersetzen:
+
+```python
+        for view in self.views.values():
+            view.destroy()
+        self.views.clear()
+```
+
+durch:
+
+```python
+        for widget in [*self._placeholders, *self.views.values()]:
+            widget.destroy()
+        self._placeholders.clear()
+        self.views.clear()
+```
+
+Am Ende von `_configure_grid()` anhängen:
+
+```python
+        if not node.children:
+            # Ohne Kinder berechnet Tk kein Raster (grid_bbox = 0 0 0 0): Ein
+            # unsichtbarer Platzhalter macht die leeren Zellen messbar und sichtbar
+            placeholder = tkinter.Frame(view, width=0, height=0)
+            placeholder.grid(row=0, column=0)
+            placeholder.lower()
+            self._placeholders.append(placeholder)
+            view.grid_propagate(False)  # leerer Frame behält seine Größe wie im Programm
+```
+
+- [x] **Step 4: Komplette Testsuite**
+
+Run: `xvfb-run -a .venv/bin/pytest -q`
+
+Expected: `148 passed`
+
+- [x] **Step 5: Commit**
+
+```bash
+git add ctk_builder/ui/canvas.py tests/test_ui_canvas.py tests/test_ui_drag_drop.py docs/superpowers/plans/2026-10-13-ctk-builder-3-arbeitsflaeche.md
+git commit -m "fix: Raster und Drop-Ziele in leeren Containern"
+```
+
+**Offener Punkt (nicht umgesetzt, Entscheidung nötig):** Ein Drop weit außerhalb des Rasters
+hängt – wie spezifiziert – genau eine Zeile/Spalte an. In einem leeren 200 × 200-Frame (oder
+leeren Fenster) ist aber fast die ganze Fläche „außerhalb“; wer in die Mitte zieht, bekommt
+Zelle (1, 1) und eine leere Zeile 0 / Spalte 0. Der grüne Zielrahmen zeigt das vorher an.

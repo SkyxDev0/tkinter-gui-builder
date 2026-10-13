@@ -1,6 +1,8 @@
 import pytest
 
 from conftest import node_named
+from ctk_builder.session import Session
+from ctk_builder.ui.canvas import DesignCanvas
 from ctk_builder.ui.drag_drop import DragController, DropTarget, drop_target
 from ctk_builder.ui.palette import Palette
 
@@ -72,3 +74,13 @@ def test_small_movement_is_a_click(drag):
     drag_events(source, source.winfo_rootx() + 4, source.winfo_rooty() + 4)
     assert session.selected_id == name.id
     assert session.project.find(name.id).layout.row == 0
+
+
+def test_drop_target_in_empty_window(root):
+    session = Session()
+    design = DesignCanvas(root, session)
+    design.pack(fill="both", expand=True)
+    root.update()
+    surface = design.surface
+    target = drop_target(design, surface.winfo_rootx() + 10, surface.winfo_rooty() + 10)
+    assert target == DropTarget("window", 0, 0)
