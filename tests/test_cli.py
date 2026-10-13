@@ -32,14 +32,16 @@ def test_run_script_executes_as_main(tmp_path, monkeypatch):
     assert (tmp_path / "ergebnis.txt").read_text(encoding="utf-8") == "aus Nachbarmodul"
 
 
-def test_run_script_as_subprocess_prints_output(tmp_path):
+def test_run_script_prints_utf8_whatever_the_console_encoding(tmp_path):
+    """Der Runner liest UTF-8. Die gebaute App ignoriert PYTHONIOENCODING und würde
+    unter Windows in der Codepage (cp1252) schreiben – hier mit latin-1 nachgestellt."""
     script = tmp_path / "hallo.py"
     script.write_text("print('Grüße')\n", encoding="utf-8")
     result = subprocess.run(
         [sys.executable, "-m", "ctk_builder", RUN_SCRIPT_FLAG, script.name],
-        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8",
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace",
         env={**os.environ, "PYTHONPATH": str(Path(__file__).parent.parent),
-             "PYTHONIOENCODING": "utf-8"},
+             "PYTHONIOENCODING": "latin-1"},
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == "Grüße\n"

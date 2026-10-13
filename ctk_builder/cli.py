@@ -23,9 +23,11 @@ def run_script(path: str) -> None:
     script = Path(path).resolve()
     sys.argv = [str(script)]
     sys.path.insert(0, str(script.parent))
+    # Der Runner liest UTF-8 zeilenweise; die gebaute App ignoriert
+    # PYTHONIOENCODING und schriebe unter Windows sonst in der Codepage.
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, "reconfigure"):
-            stream.reconfigure(line_buffering=True)
+            stream.reconfigure(encoding="utf-8", line_buffering=True)
     runpy.run_path(str(script), run_name="__main__")
 
 

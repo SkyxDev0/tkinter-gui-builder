@@ -43,7 +43,7 @@ def main() -> None:
         args += ["--osx-bundle-identifier", "io.github.skyxdev0.ctkbuilder"]
     else:
         args.append("--onefile")
-    print(f"Baue {app_name()} {__version__} …")
+    print(f"Baue {app_name()} {__version__} ...")
     PyInstaller.__main__.run(args)
 
 
