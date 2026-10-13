@@ -118,12 +118,15 @@ class MainWindow(ctk.CTk):
         for key, action in shortcuts.items():
             self.bind_all(f"<{MOD}-{key}>", lambda e, a=action: (a(), "break")[1])
         self.bind_all(f"<{MOD}-Shift-z>", lambda e: (self.session.redo(), "break")[1])
+        # tkinter.Misc.bind: CTkFrame.bind() bindet an sein internes Canvas,
+        # den Fokus hat aber die Arbeitsfläche selbst (DesignCanvas._pressed)
         for widget in (self.canvas, self.tree.tree):
-            widget.bind("<Delete>", lambda e: self.delete_selected())
-            widget.bind("<BackSpace>", lambda e: self.delete_selected())
+            tkinter.Misc.bind(widget, "<Delete>", lambda e: self.delete_selected())
+            tkinter.Misc.bind(widget, "<BackSpace>", lambda e: self.delete_selected())
         for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
                                        "Left": (0, -1), "Right": (0, 1)}.items():
-            self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
+            tkinter.Misc.bind(self.canvas, f"<{key}>",
+                              lambda e, r=d_row, c=d_column: self.nudge(r, c))
 
     # ------------------------------------------------------------ Bearbeiten
 

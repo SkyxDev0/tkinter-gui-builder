@@ -134,7 +134,9 @@ class DesignCanvas(ctk.CTkFrame):
         tags = view.bindtags()
         if not tags[0].startswith("design-"):
             view.bindtags((tag, *tags))
-        for child in view.winfo_children():
+        # tkinter.Misc.winfo_children: CTkFrame verbirgt sein internes Canvas in
+        # winfo_children(), Klicks auf leere Frame-Flächen landen aber genau dort
+        for child in tkinter.Misc.winfo_children(view):
             if child in designed or child in self._outline:
                 continue
             self._tag_tree(child, tag, designed)

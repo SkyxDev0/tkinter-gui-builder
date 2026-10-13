@@ -51,3 +51,24 @@ def test_node_at(canvas):
     surface = canvas.surface
     assert canvas.node_at(surface.winfo_rootx() + 410, surface.winfo_rooty() + 250) == "window"
     assert canvas.node_at(surface.winfo_rootx() - 10, surface.winfo_rooty() - 10) is None
+
+
+def click_screen(canvas, x_root, y_root):
+    """Klickt das Tk-Widget, das an der Bildschirmposition oben liegt – wie die echte Maus."""
+    target = canvas.winfo_containing(x_root, y_root)
+    click(target, x_root - target.winfo_rootx(), y_root - target.winfo_rooty())
+
+
+def test_click_on_empty_area_of_frames_selects_them(canvas):
+    """CTkFrame verbirgt sein internes Canvas in winfo_children(); Klicks darauf zählen trotzdem."""
+    session = canvas.session
+    command = AddWidget("window", "CTkFrame", 4, 0)
+    session.execute(command)
+    canvas.update()
+    view = canvas.views[command.node_id]
+    click_screen(canvas, view.winfo_rootx() + 20, view.winfo_rooty() + 20)
+    assert session.selected_id == command.node_id
+    surface = canvas.surface
+    click_screen(canvas, surface.winfo_rootx() + 410, surface.winfo_rooty() + 250)
+    assert session.selected_id == "window"
+

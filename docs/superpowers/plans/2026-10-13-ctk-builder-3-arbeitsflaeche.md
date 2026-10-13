@@ -710,3 +710,126 @@ Gefundene Probleme als eigene Tasks nachtragen und mit Test-first beheben.
 ```bash
 git push
 ```
+
+
+### Task 5: Klicks und Tasten auf CTkFrame-Flächen (nachgetragen)
+
+Gefunden beim manuellen Test aus Task 4 (Schritte 5, 6 und 8), durchgespielt mit echten
+Mausereignissen (`xdotool` unter Xvfb). Zwei Eigenheiten von `CTkFrame`, die Tests mit
+`event_generate` direkt auf dem Frame nicht bemerken:
+
+- `CTkFrame.winfo_children()` verbirgt das interne `_canvas`. Es bekam daher kein
+  `design-…`-Bindtag: Ein Klick auf eine leere Stelle der Arbeitsfläche oder eines Frames
+  wählte nichts aus, und ein Frame ließ sich an seiner freien Fläche nicht greifen.
+- `CTkFrame.bind()` bindet an das interne `_canvas`, den Fokus holt sich aber `DesignCanvas`
+  selbst (`_pressed` → `focus_set()`). Pfeiltasten und Entf/Rücktaste wirkten auf der
+  Arbeitsfläche deshalb nie.
+
+**Files:**
+- Modify: `ctk_builder/ui/canvas.py`, `ctk_builder/ui/main_window.py`
+- Test: `tests/test_ui_canvas.py`, `tests/test_ui_main_window.py` (Tests anhängen)
+
+- [x] **Step 1: Failing Tests anhängen**
+
+An `tests/test_ui_canvas.py` anhängen (klickt wie die echte Maus das Widget, das oben liegt):
+
+```python
+def click_screen(canvas, x_root, y_root):
+    """Klickt das Tk-Widget, das an der Bildschirmposition oben liegt – wie die echte Maus."""
+    target = canvas.winfo_containing(x_root, y_root)
+    click(target, x_root - target.winfo_rootx(), y_root - target.winfo_rooty())
+
+
+def test_click_on_empty_area_of_frames_selects_them(canvas):
+    """CTkFrame verbirgt sein internes Canvas in winfo_children(); Klicks darauf zählen trotzdem."""
+    session = canvas.session
+    command = AddWidget("window", "CTkFrame", 4, 0)
+    session.execute(command)
+    canvas.update()
+    view = canvas.views[command.node_id]
+    click_screen(canvas, view.winfo_rootx() + 20, view.winfo_rooty() + 20)
+    assert session.selected_id == command.node_id
+    surface = canvas.surface
+    click_screen(canvas, surface.winfo_rootx() + 410, surface.winfo_rooty() + 250)
+    assert session.selected_id == "window"
+```
+
+An `tests/test_ui_main_window.py` anhängen (Import oben: `from conftest import click, node_named`):
+
+```python
+def test_keys_reach_canvas_after_click(app):
+    """Nach einem Klick hat die Arbeitsfläche den Fokus; Pfeiltasten und Entf wirken dort."""
+    session = app.session
+    switch = AddWidget("window", "CTkSwitch", 4, 0)
+    session.execute(switch)
+    app.update()
+    app.focus_force()
+    click(app.canvas.views[switch.node_id].winfo_children()[0])
+    assert app.focus_get() is app.canvas
+    app.canvas.event_generate("<Right>")
+    assert session.project.find(switch.node_id).layout.column == 1
+    app.canvas.event_generate("<Delete>")
+    assert session.project.find(switch.node_id) is None
+```
+
+- [x] **Step 2: Tests ausführen und Fehlschlag prüfen**
+
+Run: `.venv/bin/pytest tests/test_ui_canvas.py tests/test_ui_main_window.py -v`
+
+Expected: 2 failed (Auswahl bleibt `window` bzw. Spalte bleibt 0)
+
+- [x] **Step 3: Internes Canvas mit taggen**
+
+In `ctk_builder/ui/canvas.py` (`_tag_tree`) ersetzen:
+
+```python
+        for child in view.winfo_children():
+```
+
+durch:
+
+```python
+        # tkinter.Misc.winfo_children: CTkFrame verbirgt sein internes Canvas in
+        # winfo_children(), Klicks auf leere Frame-Flächen landen aber genau dort
+        for child in tkinter.Misc.winfo_children(view):
+```
+
+- [x] **Step 4: Tasten an das fokussierte Widget binden**
+
+In `ctk_builder/ui/main_window.py` (`_bind_keys`) ersetzen:
+
+```python
+        for widget in (self.canvas, self.tree.tree):
+            widget.bind("<Delete>", lambda e: self.delete_selected())
+            widget.bind("<BackSpace>", lambda e: self.delete_selected())
+        for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
+                                       "Left": (0, -1), "Right": (0, 1)}.items():
+            self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
+```
+
+durch:
+
+```python
+        # tkinter.Misc.bind: CTkFrame.bind() bindet an sein internes Canvas,
+        # den Fokus hat aber die Arbeitsfläche selbst (DesignCanvas._pressed)
+        for widget in (self.canvas, self.tree.tree):
+            tkinter.Misc.bind(widget, "<Delete>", lambda e: self.delete_selected())
+            tkinter.Misc.bind(widget, "<BackSpace>", lambda e: self.delete_selected())
+        for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
+                                       "Left": (0, -1), "Right": (0, 1)}.items():
+            tkinter.Misc.bind(self.canvas, f"<{key}>",
+                              lambda e, r=d_row, c=d_column: self.nudge(r, c))
+```
+
+- [x] **Step 5: Komplette Testsuite**
+
+Run: `xvfb-run -a .venv/bin/pytest -q`
+
+Expected: `146 passed`
+
+- [x] **Step 6: Commit**
+
+```bash
+git add ctk_builder/ui/canvas.py ctk_builder/ui/main_window.py tests/test_ui_canvas.py tests/test_ui_main_window.py docs/superpowers/plans/2026-10-13-ctk-builder-3-arbeitsflaeche.md
+git commit -m "fix: Klicks und Tasten auf CTkFrame-Flächen der Arbeitsfläche"
+```

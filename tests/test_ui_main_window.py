@@ -2,7 +2,7 @@
 
 import time
 
-from conftest import node_named
+from conftest import click, node_named
 from ctk_builder.commands import AddWidget
 
 
@@ -63,3 +63,18 @@ def test_arrow_keys_move_selected_widget(app):
 def test_overlay_and_drag_are_wired(app):
     assert app.grid_overlay.canvas is app.canvas
     assert app.canvas.on_press == app.drag.press_on_canvas
+
+
+def test_keys_reach_canvas_after_click(app):
+    """Nach einem Klick hat die Arbeitsfläche den Fokus; Pfeiltasten und Entf wirken dort."""
+    session = app.session
+    switch = AddWidget("window", "CTkSwitch", 4, 0)
+    session.execute(switch)
+    app.update()
+    app.focus_force()
+    click(app.canvas.views[switch.node_id].winfo_children()[0])
+    assert app.focus_get() is app.canvas
+    app.canvas.event_generate("<Right>")
+    assert session.project.find(switch.node_id).layout.column == 1
+    app.canvas.event_generate("<Delete>")
+    assert session.project.find(switch.node_id) is None
