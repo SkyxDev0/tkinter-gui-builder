@@ -67,6 +67,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb libtk8.6
       - name: Installieren
         run: python -m pip install ".[app]"
+      - name: Dateityp-Probe (macOS)
+        # zeigt, welche Endungen macOS als Dateityp kennt (nil = Tk < 8.6.17 stürzt ab)
+        if: runner.os == 'macOS'
+        run: |
+          sw_vers
+          printf 'import UniformTypeIdentifiers\nfor e in ["json", "ctkb.json", "x.y"] { print(e, UTType(filenameExtension: e)?.identifier ?? "nil") }\n' > "$RUNNER_TEMP/probe.swift"
+          swift "$RUNNER_TEMP/probe.swift" || echo "Probe nicht ausführbar"
       - name: App bauen
         run: python tools/build.py
       - name: App prüfen
@@ -77,6 +84,13 @@ jobs:
           else
             python tools/smoke_test.py
           fi
+      - name: Absturzberichte (macOS)
+        if: failure() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports
+          path: ~/Library/Logs/DiagnosticReports/*CTk*
+          if-no-files-found: ignore
       - name: Download-Datei erstellen
         run: python tools/package.py
       - uses: actions/upload-artifact@v4
