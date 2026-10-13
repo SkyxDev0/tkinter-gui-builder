@@ -1,7 +1,7 @@
 # CTk Builder – Design-Spezifikation
 
 Datum: 2026-10-13
-Status: abgestimmt, bereit für Implementierungsplan
+Status: abgestimmt; Pläne unter `docs/superpowers/plans/`
 
 ## Ziel
 
@@ -55,7 +55,7 @@ Modell ──► codegen (Python-Quelltext)
 ### Widgets hinzufügen
 - Drag aus der Palette auf eine Grid-Zelle; Zielzelle wird beim Ziehen hervorgehoben.
 - Drop auf den Rand außerhalb des Grids legt automatisch eine neue Zeile/Spalte an.
-- Doppelklick in der Palette fügt in die nächste freie Zelle des ausgewählten Containers ein (bzw. des Fensters, wenn nichts oder ein Nicht-Container ausgewählt ist: dann dessen Eltern-Container).
+- Ein Klick (ohne Ziehen) in der Palette fügt in die nächste freie Zelle des ausgewählten Containers ein; ist ein Nicht-Container ausgewählt, in dessen Eltern-Container.
 - Neue Widgets bekommen einen eindeutigen Standardnamen (`button_1`, `button_2`, …).
 
 ### Auswahl
@@ -69,7 +69,7 @@ Modell ──► codegen (Python-Quelltext)
 - Ein Frame kann nicht in sich selbst oder einen eigenen Nachfahren verschoben werden.
 
 ### Zeilen und Spalten
-- Am Rand des Grids jedes Containers: Köpfe je Zeile/Spalte mit Index und Gewicht, plus `[+]` zum Anhängen.
+- Rasterlinien werden für alle Container gezeichnet. Köpfe je Zeile/Spalte (Index und Gewicht, plus `[+]` zum Anhängen) erscheinen am Rand des **aktiven Containers** (ausgewählter Container bzw. Eltern-Container des ausgewählten Widgets), damit verschachtelte Frames übersichtlich bleiben.
 - Klick auf einen Kopf zeigt im Eigenschaften-Panel `weight`, `minsize`, `uniform`.
 - Rechtsklick-Menü: Zeile/Spalte davor/danach einfügen, löschen. Löschen ist nur erlaubt, wenn sie leer ist.
 
@@ -83,7 +83,8 @@ Modell ──► codegen (Python-Quelltext)
 - Das normale Verhalten der Widgets wird unterdrückt: Klick-/Tastatur-Events werden auf allen internen Teil-Widgets abgefangen (rekursiv über `winfo_children()`) und auf Auswahl umgeleitet; `command` wird im Builder nicht gesetzt; Eingabefelder sind nicht editierbar.
 - Rasterlinien und Auswahlrahmen werden als dünne Overlay-Elemente gezeichnet, deren Position aus `grid_bbox()` berechnet wird.
 - Leere Zeilen/Spalten erhalten im Builder eine Mindestgröße, damit man hineinziehen kann; diese Mindestgröße landet nicht im generierten Code (außer der Nutzer setzt `minsize` explizit).
-- Bei jeder Modelländerung wird der betroffene Container neu aufgebaut (V1: einfaches Neurendern, keine feingranulare Aktualisierung).
+- Bei jeder Modelländerung wird die Arbeitsfläche komplett neu aufgebaut (V1: einfaches Neurendern, keine feingranulare Aktualisierung).
+- Appearance-Mode und Farbthema sind in CustomTkinter global. Die Vorschau nutzt daher die Einstellungen des Builders; das echte Aussehen zeigt **▶ Ausführen**.
 
 ## Code-Export
 
@@ -129,7 +130,7 @@ Für ein Projekt `kontakt` entstehen neben der Projektdatei:
 ## Technik
 
 - Python 3.12+ (Homebrew oder python.org; das macOS-System-Python 3.9 mit Tk 8.5 ist ungeeignet).
-- Abhängigkeiten: `customtkinter`; Entwicklung: `pytest`.
+- Abhängigkeiten: `customtkinter>=6.0,<7`; Entwicklung: `pytest`.
 - Virtualenv `.venv` im Projektordner.
 - Paketstruktur:
 
@@ -138,23 +139,27 @@ ctk_builder/
   __main__.py
   model.py
   widget_specs.py
+  names.py          # Prüfung generierter Bezeichner
   commands.py
   project_io.py
   codegen.py
+  exporter.py       # generierte Dateien schreiben
+  session.py        # Projekt + Verlauf + Auswahl + Dateipfad
+  runner.py         # exportiertes Programm starten
+  settings.py       # ~/.ctk_builder.json
   ui/
     main_window.py
     palette.py
     structure_tree.py
     canvas.py
+    grid_overlay.py # Rasterlinien, Zeilen-/Spaltenköpfe
+    drag_drop.py    # Drag & Drop
     properties.py
     output_console.py
 tests/
-  test_model.py
-  test_commands.py
-  test_project_io.py
-  test_codegen.py
+  conftest.py
   snapshots/
-  test_ui_smoke.py
+  test_*.py         # ein Testmodul je Modul bzw. Panel
 ```
 
 Start: `python -m ctk_builder`.
