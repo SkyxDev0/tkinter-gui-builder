@@ -40,7 +40,26 @@ def run(args: list[str], cwd: Path | None = None) -> str:
     return result.stdout + result.stderr
 
 
+def stop(process: subprocess.Popen) -> None:
+    """Beendet die App samt Kindprozessen.
+
+    Die Ein-Datei-App startet unter Windows einen zweiten Prozess; terminate()
+    träfe nur den Starter, die eigentliche App liefe weiter.
+    """
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                       capture_output=True)
+    else:
+        process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # lesbares Log auch unter Windows
     app = app_path()
     print(f"App: {app}")
     if not app.exists():
@@ -57,15 +76,10 @@ def main() -> None:
     assert "Grüße aus der App" in output, f"Programmausgabe fehlt: {output!r}"
     print(f"2. Programm gestartet ok: {output.strip()}")
 
-    with tempfile.TemporaryDirectory() as home:
-        process = subprocess.Popen([str(app)], cwd=home)
-        time.sleep(10)
-        alive = process.poll() is None
-        process.terminate()
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
+    process = subprocess.Popen([str(app)], cwd=app.parent)
+    time.sleep(10)
+    alive = process.poll() is None
+    stop(process)
     assert alive, f"Oberfläche hat sich beendet (Code {process.returncode})"
     print("3. Oberfläche startet ok")
     print("Alle Prüfungen bestanden.")
