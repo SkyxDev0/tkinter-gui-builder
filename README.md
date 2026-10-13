@@ -128,7 +128,9 @@ Ohne Display werden die Oberflächentests übersprungen; die CI lässt sie mit v
 
 1. Version in `ctk_builder/__init__.py` erhöhen.
 2. Release-Notizen in `docs/releases/v<version>.md` schreiben.
-3. Tag pushen: `git tag v<version> && git push origin v<version>`.
+3. Auf GitHub unter **Actions → Tests & Builds → Run workflow** den Branch `main` wählen, den Haken
+   **„Release … veröffentlichen“** setzen und starten – oder einen Tag pushen:
+   `git tag v<version> && git push origin v<version>`.
 
 GitHub Actions testet, baut die Apps für macOS, Windows und Linux, prüft sie und legt das Release mit allen Downloads an.
 
