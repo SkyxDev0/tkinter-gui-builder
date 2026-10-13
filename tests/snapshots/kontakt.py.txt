@@ -1,0 +1,14 @@
+from kontakt_ui import KontaktUI
+
+
+class Kontakt(KontaktUI):
+    def on_cancel(self):
+        pass
+
+    def on_save(self):
+        pass
+
+
+if __name__ == "__main__":
+    app = Kontakt()
+    app.mainloop()
