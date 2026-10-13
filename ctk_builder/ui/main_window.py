@@ -11,12 +11,14 @@ from typing import Optional
 import customtkinter as ctk
 
 from ctk_builder import exporter
-from ctk_builder.commands import DuplicateWidget, RemoveWidget
+from ctk_builder.commands import DuplicateWidget, MoveWidget, RemoveWidget
 from ctk_builder.project_io import SUFFIX, ProjectFileError
 from ctk_builder.runner import ProcessRunner
 from ctk_builder.session import Session
 from ctk_builder.settings import Settings
 from ctk_builder.ui.canvas import DesignCanvas
+from ctk_builder.ui.drag_drop import DragController
+from ctk_builder.ui.grid_overlay import GridOverlay
 from ctk_builder.ui.output_console import OutputConsole
 from ctk_builder.ui.palette import Palette
 from ctk_builder.ui.properties import PropertiesPanel
@@ -50,6 +52,8 @@ class MainWindow(ctk.CTk):
 
         self.canvas = DesignCanvas(self, self.session)
         self.canvas.grid(row=0, column=1, sticky="nsew", pady=8)
+        self.grid_overlay = GridOverlay(self.canvas)
+        self.drag = DragController(self.canvas, self.palette)
         self.console = OutputConsole(self, self.runner)
         self.console.grid(row=1, column=1, sticky="ew", pady=(0, 8))
 
@@ -117,12 +121,26 @@ class MainWindow(ctk.CTk):
         for widget in (self.canvas, self.tree.tree):
             widget.bind("<Delete>", lambda e: self.delete_selected())
             widget.bind("<BackSpace>", lambda e: self.delete_selected())
+        for key, (d_row, d_column) in {"Up": (-1, 0), "Down": (1, 0),
+                                       "Left": (0, -1), "Right": (0, 1)}.items():
+            self.canvas.bind(f"<{key}>", lambda e, r=d_row, c=d_column: self.nudge(r, c))
 
     # ------------------------------------------------------------ Bearbeiten
 
     def delete_selected(self) -> None:
         if self.session.selected_id != "window":
             self.session.execute(RemoveWidget(self.session.selected_id))
+
+    def nudge(self, d_row: int, d_column: int) -> None:
+        """Verschiebt das ausgewählte Widget um eine Zelle (Pfeiltasten)."""
+        node = self.session.project.find(self.session.selected_id)
+        if node is None or node.id == "window":
+            return
+        row, column = node.layout.row + d_row, node.layout.column + d_column
+        if row < 0 or column < 0:
+            return
+        parent = self.session.project.parent_of(node.id)
+        self.session.execute(MoveWidget(node.id, parent.id, row, column))
 
     def duplicate_selected(self) -> None:
         if self.session.selected_id == "window":

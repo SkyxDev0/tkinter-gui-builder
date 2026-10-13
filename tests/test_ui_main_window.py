@@ -47,3 +47,19 @@ def test_save_export_and_run(app, tmp_path, monkeypatch):
 
 def test_confirm_discard_without_changes(app):
     assert app.confirm_discard()
+
+
+def test_arrow_keys_move_selected_widget(app):
+    session = app.session
+    switch = AddWidget("window", "CTkSwitch", 4, 0)
+    session.execute(switch)
+    session.select(switch.node_id)
+    app.nudge(0, 1)
+    assert session.project.find(switch.node_id).layout.column == 1
+    app.nudge(0, -5)  # außerhalb: nichts passiert
+    assert session.project.find(switch.node_id).layout.column == 1
+
+
+def test_overlay_and_drag_are_wired(app):
+    assert app.grid_overlay.canvas is app.canvas
+    assert app.canvas.on_press == app.drag.press_on_canvas
