@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 import tkinter
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from ctk_builder import geometry, snapping
 from ctk_builder.commands import AddWidget, MoveWidget, SetGeometry
@@ -112,6 +112,9 @@ class DragController:
         self._swallow_release = False             # nach Esc: Loslassen ignorieren
         self.grid_snap = False                    # zusätzlich am 8-px-Raster einrasten
         self._lifted = False                      # gezogenes Widget nach oben geholt
+        self._last_free: Optional[str] = None     # zuletzt getroffener freier Container
+        # vor jeder Geste aufgerufen (Hauptfenster: offene Pfeiltasten-Bewegung übernehmen)
+        self.on_gesture_start: Callable[[], None] = lambda: None
         # Hilfselemente gehören zur Arbeitsfläche (nicht abgeschnitten am Fensterrand)
         self._marker = [tkinter.Frame(canvas, bg=TARGET_COLOR) for _ in range(4)]
         self._ghost = [tkinter.Frame(canvas, bg=theme.pick(theme.ACCENT)) for _ in range(4)]
@@ -125,8 +128,8 @@ class DragController:
         canvas.on_motion = self.motion
         canvas.on_release = self.release
         canvas.after_selection.append(self.show_handles)
-        # Ein Befehl mitten im Ziehen (z. B. Strg+Z) zeichnet alles neu: Geste beenden
-        self.session.before_change.append(lambda: self.cancel(render=False))
+        # Ein Befehl mitten in einer Geste (z. B. Strg+Z, Entf) beendet sie zuerst
+        self.session.before_change.append(self._interrupt)
         for widget_type, button in palette.buttons.items():
             self._hook_palette_button(button, widget_type)
         self.show_handles()
@@ -144,9 +147,25 @@ class DragController:
         if node_id != "window":
             self._begin(event, moving=node_id)
 
+    def _fresh_gesture(self) -> None:
+        """Neuer Klick: Reste einer Geste, deren Loslassen nie ankam, aufräumen."""
+        if self.active:
+            self.cancel()
+        self._swallow_release = False
+        self._resizing = self._resized = None
+        self._start = None
+        self.on_gesture_start()
+
+    def _interrupt(self) -> None:
+        """Vor jeder Modelländerung: laufende Geste abbrechen, offenen Klick vergessen
+        (das gedrückte Widget gibt es danach vielleicht nicht mehr)."""
+        if not self.cancel() and self._start is not None and self._resizing is None:
+            self._start = None
+            self._moving = self._widget_type = None
+
     def _begin(self, event: tkinter.Event, widget_type: Optional[str] = None,
                moving: Optional[str] = None) -> None:
-        self._swallow_release = False
+        self._fresh_gesture()
         self._start = (event.x_root, event.y_root)
         self._dragging = False
         self._widget_type = widget_type
@@ -154,6 +173,7 @@ class DragController:
         self._target = None
         self._displaced = False
         self._lifted = False
+        self._last_free = None
         if moving is not None:
             rect = self.canvas.rect_of(moving)
             parent = self.session.project.parent_of(moving)
@@ -186,15 +206,20 @@ class DragController:
         target = drop_target(self.canvas, event.x_root, event.y_root, self._moving)
         project = self.session.project
         if target is None and self._moving is not None:
-            # Zeiger außerhalb der Fläche: das Widget bleibt am Rand seines Containers
+            # Zeiger außerhalb der Fläche: das Widget bleibt am Rand des Containers,
+            # über dem es zuletzt war (sonst seines bisherigen)
             parent = project.parent_of(self._moving)
-            if parent.is_free:
-                target = DropTarget(parent.id)
+            fallback = self._last_free if project.find(self._last_free or "") else None
+            if fallback is None and parent is not None and parent.is_free:
+                fallback = parent.id
+            if fallback is not None:
+                target = DropTarget(fallback)
         if target is None:
             return None
         container = project.find(target.container_id)
         if not container.is_free:
             return target
+        self._last_free = container.id
         x, y = self.canvas.to_local(container.id, event.x_root, event.y_root)
         raw = Rect(round(x - self._grab[0]), round(y - self._grab[1]), *self._size)
         others = [self.canvas.rect_of(c.id) for c in container.children
@@ -219,11 +244,20 @@ class DragController:
         """Läuft gerade ein Ziehen oder Größe-Ändern?"""
         return self._resizing is not None or (self._start is not None and self._dragging)
 
-    def cancel(self, render: bool = True) -> bool:
-        """Esc: laufendes Ziehen oder Größe-Ändern abbrechen, ohne Befehl."""
+    def cancel(self) -> bool:
+        """Esc: laufendes Ziehen oder Größe-Ändern abbrechen, ohne Befehl.
+
+        Stellt die Vorschau direkt wieder her, statt neu zu zeichnen: das gedrückte
+        Widget bleibt erhalten, sein Loslassen kommt an und wird verschluckt.
+        """
         if not self.active:
             return False
+        if self._resizing is not None:
+            self.canvas.restore(self._resizing[0])
         self._restore_moving()
+        if self._lifted:
+            self.canvas.restack()
+        self._lifted = False
         self._resizing = self._resized = None
         self._start = None
         self._dragging = False
@@ -232,8 +266,7 @@ class DragController:
         self._hide_ghost()
         self._show_guides(None, ())
         self._badge.place_forget()
-        if render:
-            self.canvas.render()  # Vorschau (Größe, Stapelung) zurück auf das Modell
+        self.show_handles()
         return True
 
     def release(self, event: tkinter.Event) -> Optional[str]:
@@ -258,7 +291,8 @@ class DragController:
         lifted, self._lifted = self._lifted, False
         if target is None or not self.drop(target, widget_type=widget_type, moving=moving):
             if lifted:
-                self.canvas.render()  # Stapelreihenfolge wie im Modell (nie lower())
+                self.canvas.restack()  # Stapelreihenfolge wie im Modell (nie lower())
+        self.canvas.focus_set()  # Pfeiltasten und Entf wirken gleich auf das Widget
         self.show_handles()
         return "break"
 
@@ -273,10 +307,10 @@ class DragController:
                 self.session.select(command.node_id)
                 return True
             return False
-        if moving is None:
-            return False
-        node = self.session.project.find(moving)
-        parent = self.session.project.parent_of(moving)
+        node = self.session.project.find(moving) if moving is not None else None
+        parent = self.session.project.parent_of(moving) if node is not None else None
+        if node is None or parent is None:
+            return False  # Widget gibt es nicht mehr (z. B. während des Ziehens gelöscht)
         if parent.id == target.container_id:
             where = ((node.layout.x, node.layout.y) if target.free
                      else (node.layout.row, node.layout.column))
@@ -444,6 +478,7 @@ class DragController:
             handle.place_forget()
 
     def _resize_begin(self, event: tkinter.Event, handle: str) -> str:
+        self._fresh_gesture()
         node_id = self.session.selected_id
         if not self.resizable(node_id):
             return "break"
@@ -501,5 +536,6 @@ class DragController:
             return "break"
         if not self.session.execute(SetGeometry(node_id, rect.x, rect.y,
                                                 rect.width, rect.height)):
-            self.canvas.render()  # Vorschau zurück auf den Stand im Modell
+            self.canvas.restore(node_id)  # Vorschau zurück auf den Stand im Modell
+        self.show_handles()
         return "break"

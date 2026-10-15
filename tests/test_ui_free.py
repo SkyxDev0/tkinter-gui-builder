@@ -410,8 +410,9 @@ def test_palette_click_stacks_below_selection(free_app):
     session.select(ids["button"])
     click(app.palette.buttons["CTkEntry"].winfo_children()[0])
     first = session.project.find(session.selected_id)
-    button = app.canvas.rect_of(ids["button"])
-    assert (first.layout.x, first.layout.y) == (20, button.bottom + 8)
+    # direkt unter dem Button läge es auf der CheckBox (y 120): also darunter
+    check = app.canvas.rect_of(ids["check"])
+    assert (first.layout.x, first.layout.y) == (20, check.bottom + 8)
     click(app.palette.buttons["CTkEntry"].winfo_children()[0])
     second = session.project.find(session.selected_id)
     assert second.layout.x == 20 and second.layout.y == first.layout.y + 28 + 8
@@ -497,3 +498,200 @@ def test_hidpi_positions_and_guides_are_pixel_exact(root, scaling):
         assert session.project.find(b.node_id).layout.x == 7
     finally:
         ctk.set_widget_scaling(1.0)
+
+
+# ---------------------------------------------------------------- Befunde der Prüfung 1.1.0
+
+def drag_handle(handle, dx, dy, state=0):
+    x, y = handle.winfo_rootx() + 4, handle.winfo_rooty() + 4
+    handle.event_generate("<Button-1>", x=4, y=4, rootx=x, rooty=y)
+    handle.event_generate("<B1-Motion>", x=4, y=4, rootx=x + dx, rooty=y + dy,
+                          state=BUTTON1 | state)
+    handle.event_generate("<ButtonRelease-1>", x=4, y=4, rootx=x + dx, rooty=y + dy)
+    handle.update()
+
+
+def test_lost_release_after_cancel_does_not_break_next_resize(free):
+    """Esc, Loslassen kommt nie an (Zeiger neben dem Fenster): die nächste
+    Größenänderung muss trotzdem gespeichert werden."""
+    session, canvas, drag, ids = free
+    source = inner(canvas, ids["button"])
+    x, y = surface_point(canvas, "window", 25, 65)
+    press(source, x, y)
+    move(source, x + 80, y + 80)
+    assert drag.cancel()
+    session.select(ids["button"])
+    canvas.update()
+    drag_handle(drag._handles["e"], 30, 0, state=ALT)
+    assert session.project.find(ids["button"]).props["width"] == 170
+    assert not drag.active
+
+
+def test_stale_drag_is_cleaned_up_by_next_press(free):
+    session, canvas, drag, ids = free
+    source = inner(canvas, ids["button"])
+    x, y = surface_point(canvas, "window", 25, 65)
+    press(source, x, y)
+    move(source, x + 80, y + 40)  # Loslassen geht verloren
+    label = inner(canvas, ids["label"])
+    lx, ly = surface_point(canvas, "window", 22, 22)
+    press(label, lx, ly)
+    assert int(canvas.views[ids["button"]].place_info()["x"]) == 20  # zurück an seinem Platz
+    move(label, lx + 100, ly + 100, state=ALT)
+    release(label, lx + 100, ly + 100)
+    assert session.project.find(ids["label"]).layout.x == 120
+    assert session.project.find(ids["button"]).layout.x == 20
+
+
+def test_position_change_keeps_views(free):
+    """Nur Positionen geändert: Ansichten werden verschoben, nicht neu gebaut – sonst
+    ginge der Maus-Grab eines gerade gedrückten Widgets verloren."""
+    session, canvas, _, ids = free
+    from ctk_builder.commands import SetLayout
+    before = dict(canvas.views)
+    session.execute(SetLayout(ids["entry"], x=30, y=40))
+    canvas.update()
+    assert canvas.views == before
+    assert canvas.views[ids["entry"]].winfo_x() == 30
+    session.execute(SetProperty(ids["entry"], "width", 160))
+    assert canvas.views[ids["entry"]] is not before[ids["entry"]]  # sonst neu gebaut
+
+
+def test_undo_without_history_during_resize_restores_preview(free):
+    session, canvas, drag, ids = free
+    session.stack.reset(session.project)  # leerer Verlauf, wie direkt nach dem Öffnen
+    session.select(ids["button"])
+    canvas.update()
+    handle = drag._handles["se"]
+    x, y = handle.winfo_rootx() + 4, handle.winfo_rooty() + 4
+    handle.event_generate("<Button-1>", x=4, y=4, rootx=x, rooty=y)
+    handle.event_generate("<B1-Motion>", x=4, y=4, rootx=x + 60, rooty=y + 30,
+                          state=BUTTON1 | ALT)
+    canvas.update()
+    session.undo()  # Strg+Z mitten in der Geste, nichts rückgängig zu machen
+    canvas.update()
+    assert canvas.rect_of(ids["button"]).width == 140
+    handle.event_generate("<ButtonRelease-1>", x=4, y=4, rootx=x + 60, rooty=y + 30)
+    assert "width" not in session.project.find(ids["button"]).props
+
+
+def test_delete_before_drag_threshold_does_not_crash(free):
+    session, canvas, drag, ids = free
+    from ctk_builder.commands import RemoveWidget
+    errors = []  # Tk fängt Ausnahmen in Callbacks ab und gibt sie nur aus
+    canvas.winfo_toplevel().report_callback_exception = lambda *args: errors.append(args)
+    source = inner(canvas, ids["button"])
+    x, y = surface_point(canvas, "window", 25, 65)
+    press(source, x, y)
+    session.execute(RemoveWidget(ids["button"]))  # Entf, Maustaste noch gedrückt
+    surface = canvas.surface
+    move(surface, x + 60, y + 60)
+    release(surface, x + 60, y + 60)
+    assert session.project.find(ids["button"]) is None
+    assert not drag.active
+    assert errors == []
+
+
+def test_second_click_soon_after_first_still_drags(free):
+    session, canvas, drag, ids = free
+    source = inner(canvas, ids["button"])
+    x, y = surface_point(canvas, "window", 25, 65)
+    press(source, x, y)
+    release(source, x, y)
+    source = inner(canvas, ids["button"])
+    press(source, x, y)  # gleich danach: Tk meldet das als <Double-Button-1>
+    move(source, x + 100, y + 40, state=ALT)
+    release(source, x + 100, y + 40)
+    assert session.project.find(ids["button"]).layout.x == 120
+
+
+def test_overshoot_keeps_last_container(free):
+    """Aus dem Frame ins Fenster und über den Rand hinaus: bleibt im Fenster."""
+    session, canvas, drag, ids = free
+    source = inner(canvas, ids["entry"])
+    x, y = surface_point(canvas, ids["frame"], 15, 15)
+    press(source, x, y)
+    over_window = surface_point(canvas, "window", 100, 280)
+    move(source, *over_window)
+    outside = (canvas.surface.winfo_rootx() - 40, over_window[1])
+    move(source, *outside)
+    release(source, *outside)
+    assert session.project.parent_of(ids["entry"]).id == "window"
+    assert session.project.find(ids["entry"]).layout.x == 0
+
+
+def test_focus_on_canvas_after_palette_drop(free):
+    session, canvas, drag, _ = free
+    tile = drag.palette.buttons["CTkLabel"].winfo_children()[0]
+    tile.focus_force()
+    press(tile, tile.winfo_rootx() + 3, tile.winfo_rooty() + 3)
+    target = surface_point(canvas, "window", 300, 280)
+    move(tile, *target)
+    release(tile, *target)
+    canvas.update()
+    assert canvas.focus_get() is canvas
+
+
+def test_stray_release_does_not_press_toolbar_buttons(free_app):
+    app, ids = free_app
+    count = len(list(app.session.project.iter_widgets()))
+    app.session.select(ids["button"])
+    trash = app.toolbar_buttons["delete"]
+    trash.event_generate("<ButtonRelease-1>", x=5, y=5)  # ohne Drücken davor
+    app.update()
+    assert len(list(app.session.project.iter_widgets())) == count
+    from conftest import click
+    click(trash, 5, 5)
+    assert len(list(app.session.project.iter_widgets())) == count - 1
+
+
+def test_pending_nudge_then_immediate_drag(free_app):
+    app, ids = free_app
+    session = app.session
+    session.select(ids["button"])
+    app.nudge(0, 1)  # Bewegung offen
+    canvas = app.canvas
+    view_before = canvas.views[ids["button"]]
+    source = inner(canvas, ids["button"])
+    x, y = surface_point(canvas, "window", 26, 65)
+    press(source, x, y)  # übernimmt die Bewegung – ohne das gedrückte Widget neu zu bauen
+    assert canvas.views[ids["button"]] is view_before
+    assert session.project.find(ids["button"]).layout.x == 21
+    move(source, x + 100, y + 40, state=ALT)
+    release(source, x + 100, y + 40)
+    assert session.project.find(ids["button"]).layout.x == 121
+
+
+def test_pending_nudge_counts_as_unsaved(free_app, tmp_path):
+    app, ids = free_app
+    app.session.save(tmp_path / "frei.ctkb.json")
+    app.session.select(ids["button"])
+    app.nudge(0, 1)
+    asked = []
+    from ctk_builder.ui import main_window
+    original = main_window.messagebox.askyesnocancel
+    main_window.messagebox.askyesnocancel = lambda *a, **k: asked.append(a) or None
+    try:
+        assert not app.confirm_discard()
+    finally:
+        main_window.messagebox.askyesnocancel = original
+    assert asked
+
+
+def test_restack_with_ctrl_arrows_does_not_nudge(free_app):
+    app, ids = free_app
+    from ctk_builder.ui.main_window import MOD
+    session = app.session
+    session.select(ids["label"])
+    app.canvas.focus_force()
+    app.update()
+    app.canvas.event_generate(f"<{MOD}-Up>")
+    app.update()
+    app.flush_nudge()
+    children = [c.id for c in session.project.window.children]
+    assert children.index(ids["label"]) == 1
+    assert session.project.find(ids["label"]).layout.y == 20  # nicht verschoben
+    labels = [app.menus["edit"].entrycget(i, "label")
+              for i in range(app.menus["edit"].index("end") + 1)
+              if app.menus["edit"].type(i) == "command"]
+    assert "Alles frei anordnen" in labels

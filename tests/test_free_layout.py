@@ -397,3 +397,57 @@ def test_set_layout_on_grid_child_ignores_stale_position():
     stack.project.find(label.id).layout.x = -3  # alter Wert, im Raster bedeutungslos
     stack.execute(SetLayout(label.id, sticky="w"))
     assert stack.project.find(label.id).layout.sticky == "w"
+
+
+@pytest.mark.parametrize("layout", ["column", "row", "chain", "form"])
+def test_grid_conversion_stays_fast_with_many_widgets(layout):
+    """Regression: die Band-Suche war exponentiell (15 bündige Widgets: 10 s)."""
+    import time
+
+    stack = CommandStack(new_project())
+    stack.execute(__import__("ctk_builder.commands", fromlist=["SetWindowProperty"])
+                  .SetWindowProperty("height", 3000))
+    rects = {}
+    for i in range(40):
+        x, y, width = {"column": (16, 16 + 36 * i, 140), "row": (16 + 150 * i, 16, 140),
+                       "chain": (16 + 20 * i, 16 + 20 * i, 140),
+                       "form": (16 + 120 * (i % 2), 16 + 36 * (i // 2), 100)}[layout]
+        node = add(stack, "CTkButton", x=x, y=y)
+        rects[node.id] = Rect(x, y, width, 28)
+    started = time.perf_counter()
+    stack.execute(SetManager("window", GRID, rects))
+    assert time.perf_counter() - started < 1.0
+    window = stack.project.window
+    assert all(fits_ok(window, n) for n in window.children)
+
+
+def test_move_from_free_into_grid_starts_with_fresh_grid_values():
+    stack = CommandStack(grid_project())
+    label = add(stack, "CTkLabel")
+    stack.execute(SetLayout(label.id, columnspan=1, sticky="ew", padx=9))
+    frame = add(stack, "CTkFrame")
+    stack.execute(SetManager(frame.id, PLACE))
+    stack.execute(MoveWidget(label.id, frame.id, x=5, y=5))
+    stack.execute(MoveWidget(label.id, "window", row=2, column=0))  # neue Zeile
+    layout = stack.project.find(label.id).layout
+    assert (layout.rowspan, layout.columnspan, layout.sticky, layout.padx) == (1, 1, "", 0)
+
+
+def test_move_stretched_widget_from_grid_into_free_keeps_visible_width():
+    stack = CommandStack(grid_project())
+    entry = add(stack, "CTkEntry")
+    stack.execute(SetLayout(entry.id, sticky="ew"))
+    frame = add(stack, "CTkFrame")
+    stack.execute(SetManager(frame.id, PLACE))
+    stack.execute(MoveWidget(entry.id, frame.id, x=0, y=0,
+                             rects={entry.id: Rect(0, 0, 280, 28)}))
+    assert stack.project.find(entry.id).props["width"] == 280
+
+
+def test_spot_below_skips_widgets_in_the_way(stack):
+    label = add(stack, "CTkLabel", x=20, y=20)
+    button = add(stack, "CTkButton", x=20, y=60)
+    rects = {label.id: Rect(20, 20, 40, 28), button.id: Rect(20, 60, 140, 28),
+             "window": Rect(0, 0, 400, 300)}
+    entry = add(stack, "CTkEntry", anchor=label.id, rects=rects, size=(140, 28))
+    assert (entry.layout.x, entry.layout.y) == (20, 60 + 28 + geometry.GAP)

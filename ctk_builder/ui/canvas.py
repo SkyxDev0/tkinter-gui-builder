@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import sys
 import tkinter
+from dataclasses import asdict
 from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
 from ctk_builder import geometry
 from ctk_builder.geometry import Rect
-from ctk_builder.model import Node, WidgetNode
+from ctk_builder.model import PLACE, Node, WidgetNode, WindowNode
 from ctk_builder.session import Session
 from ctk_builder.ui import theme
 from ctk_builder.widget_specs import GROUP, HANDLER, SPECS
@@ -86,6 +87,12 @@ class DesignCanvas(ctk.CTkFrame):
         self.overlay_parts: set[tkinter.Misc] = set()
         self._placeholders: list[tkinter.Frame] = []
         self._probe_sizes: dict[tuple[str, float], tuple[int, int]] = {}
+        # Zuletzt gezeichneter Stand: ohne Positionen frei platzierter Widgets, plus
+        # diese Positionen. Ändern sich nur Positionen, wird verschoben statt neu
+        # gebaut – das gedrückte Widget bleibt erhalten (sonst geht der Maus-Grab
+        # verloren) und es ist deutlich schneller.
+        self._drawn: Optional[dict] = None
+        self._drawn_positions: dict[str, tuple[int, int]] = {}
         self._tags: dict[str, str] = {}
         # Erweiterungen (Raster, Drag & Drop) hängen sich hier ein:
         self.after_render: list[Callable[[], None]] = []
@@ -101,7 +108,7 @@ class DesignCanvas(ctk.CTkFrame):
         self.overlay_parts.update(self._outline)
         # Hilfslinien/Anfasser hängen sich hier ein (nach jeder Auswahl neu zeichnen)
         self.after_selection: list[Callable[[], None]] = []
-        session.measure = self.measure
+        session.measurer = self.measure
         session.probe_size = self.probe_size
         session.subscribe(self.render)
         session.subscribe_selection(self.show_selection)
@@ -145,8 +152,29 @@ class DesignCanvas(ctk.CTkFrame):
         canvas.create_text(width - 4, middle, text=f"{window.width} × {window.height}",
                            anchor="e", fill=theme.pick(theme.MUTED), font=theme.tk_font(11))
 
+    @staticmethod
+    def _snapshot(window: WindowNode) -> tuple[dict, dict[str, tuple[int, int]]]:
+        data = asdict(window)
+        positions: dict[str, tuple[int, int]] = {}
+
+        def strip(node: dict, free: bool) -> None:
+            for child in node["children"]:
+                if free:
+                    layout = child["layout"]
+                    positions[child["id"]] = (layout["x"], layout["y"])
+                    layout["x"] = layout["y"] = 0
+                strip(child, child["grid"] is not None and child.get("manager") == PLACE)
+
+        strip(data, window.is_free)
+        return data, positions
+
     def render(self) -> None:
         window = self.session.project.window
+        data, positions = self._snapshot(window)
+        if data == self._drawn and set(positions) == set(self._drawn_positions):
+            self._move_views(positions)
+            return
+        self._drawn, self._drawn_positions = data, positions
         for widget in [*self._placeholders, *self.views.values()]:
             widget.destroy()
         self._placeholders.clear()
@@ -160,6 +188,41 @@ class DesignCanvas(ctk.CTkFrame):
         for callback in self.after_render:
             callback()
         self.show_selection()
+
+    def _move_views(self, positions: dict[str, tuple[int, int]]) -> None:
+        """Nur Positionen frei platzierter Widgets haben sich geändert."""
+        for node_id, (x, y) in positions.items():
+            if self._drawn_positions.get(node_id) != (x, y):
+                self.views[node_id].place(x=x, y=y)
+        self._drawn_positions = positions
+        self.restack()
+        for callback in self.after_render:
+            callback()
+        self.show_selection()
+
+    def restack(self) -> None:
+        """Stapelreihenfolge der Ansichten wie im Modell (nach einem lift())."""
+        project = self.session.project
+        for node in [project.window, *project.iter_widgets()]:
+            if node.is_container and node.is_free:
+                for child in node.children:
+                    view = self.views.get(child.id)
+                    if view is not None:
+                        view.lift()  # in Modellreihenfolge: das letzte liegt oben
+
+    def restore(self, node_id: str) -> None:
+        """Ansicht zurück auf Position und Größe im Modell (Abbruch einer Geste)."""
+        node = self.session.project.find(node_id)
+        view = self.views.get(node_id)
+        if not isinstance(node, WidgetNode) or view is None or not view.winfo_exists():
+            return
+        names = {p.name: p.default for p in SPECS[node.type].props}
+        size = {key: node.props.get(key, names[key]) for key in ("width", "height")
+                if key in names}
+        if size:
+            view.configure(**size)
+        if self.session.project.parent_of(node_id).is_free:
+            view.place(x=node.layout.x, y=node.layout.y)
 
     def _configure_grid(self, view: tkinter.Misc, node: Node) -> None:
         # Alte Konfiguration zurücksetzen (Grid kann geschrumpft sein)
@@ -279,8 +342,9 @@ class DesignCanvas(ctk.CTkFrame):
             tag = f"design-{node_id}"
             for event in BLOCKED_EVENTS:
                 self.bind_class(tag, event, lambda e: "break")
-            self.bind_class(tag, "<Button-1>",
-                            lambda e, n=node_id: self._pressed(n, e))
+            # auch der zweite Klick kurz nach dem ersten startet ein Ziehen
+            for event in ("<Button-1>", "<Double-Button-1>"):
+                self.bind_class(tag, event, lambda e, n=node_id: self._pressed(n, e))
             self.bind_class(tag, "<B1-Motion>", self._moved)
             self.bind_class(tag, "<ButtonRelease-1>", self._released)
             # Kontextmenü: Rechtsklick; macOS-Trackpads ohne Sekundärklick: Control-Klick

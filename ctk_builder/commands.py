@@ -280,8 +280,8 @@ class MoveWidget(Command):
         if target.is_free:
             index = source.children.index(node)
             source.children.remove(node)
-            if node.is_container and source.is_grid and node.id in self.rects:
-                _keep_size(node, self.rects[node.id])  # sonst springt er auf width/height
+            if source.is_grid and node.id in self.rects:  # sichtbare Größe behalten
+                SetManager._keep_visible_size(node, self.rects[node.id])
             _place(target, node, self.x, self.y, self.rects)
             if target is source:  # im selben Container bleibt die Stapelreihenfolge
                 target.children.insert(index, node)
@@ -306,7 +306,11 @@ class MoveWidget(Command):
                 raise CommandError("Tausch nicht möglich: Widgets passen nicht")
             source.children.append(other)
 
-        node.layout.row, node.layout.column = self.row, self.column
+        if source.is_free:  # Raster-Werte stammen aus einer früheren Zeit: neu anfangen
+            node.layout = Layout(row=self.row, column=self.column,
+                                 x=node.layout.x, y=node.layout.y)
+        else:
+            node.layout.row, node.layout.column = self.row, self.column
         if not fits(target, node.layout):
             raise CommandError("Widget passt dort nicht hin")
         target.children.append(node)
@@ -507,7 +511,13 @@ class SetManager(Command):
     @staticmethod
     def _keep_visible_geometry(child: WidgetNode, rect: geometry.Rect) -> None:
         child.layout.x, child.layout.y = max(rect.x, 0), max(rect.y, 0)
-        if child.is_container:  # frei platziert ist ein Frame so groß wie width/height
+        SetManager._keep_visible_size(child, rect)
+
+    @staticmethod
+    def _keep_visible_size(child: WidgetNode, rect: geometry.Rect) -> None:
+        """Raster -> frei: Frames und per sticky gestreckte Widgets behalten ihre
+        sichtbare Größe (frei zählt nur width/height)."""
+        if child.is_container:
             _keep_size(child, rect)
             return
         props = {p.name for p in SPECS[child.type].props}

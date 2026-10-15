@@ -73,7 +73,7 @@ Die linke Leiste schaltet zwischen der Widget-Palette und dem **Strukturbaum** u
 | Duplizieren | `Cmd+D` | `Strg+D` |
 | Löschen | `Entf` / `⌫` | `Entf` / `Rücktaste` |
 | Verschieben (frei: 1 px / 10 px) | Pfeiltasten / `Shift`+Pfeil | Pfeiltasten / `Shift`+Pfeil |
-| Nach vorne / Nach hinten | `Cmd+]` / `Cmd+[` | `Strg+]` / `Strg+[` |
+| Nach vorne / Nach hinten (mit `Shift`: ganz) | `Cmd+↑` / `Cmd+↓` | `Strg+↑` / `Strg+↓` |
 | Ziehen abbrechen / Eltern wählen | `Esc` | `Esc` |
 | Neu / Öffnen / Speichern | `Cmd+N` / `Cmd+O` / `Cmd+S` | `Strg+N` / `Strg+O` / `Strg+S` |
 | Exportieren / Ausführen | `Cmd+E` / `Cmd+R` | `Strg+E` / `Strg+R` |

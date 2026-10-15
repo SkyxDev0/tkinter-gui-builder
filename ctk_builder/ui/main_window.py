@@ -42,10 +42,16 @@ FILETYPES = [("CTk Builder Projekt", f"*{SUFFIX}")]
 MAC_FILETYPES = [("CTk Builder Projekt", "*.json")]
 PLATFORM = sys.platform  # in Tests ersetzbar (sys.platform selbst nicht: CTk liest es)
 NUDGE_FAR = 10        # Pixel bei Shift+Pfeiltaste im freien Modus
-NUDGE_COMMIT_MS = 400  # Pfeiltasten: erst nach dieser Pause ein Befehl (ein Undo-Schritt)
-RESTACK_KEYS = {"front": "Shift-braceright", "forward": "bracketright",
-                "backward": "bracketleft", "back": "Shift-braceleft"}
-RESTACK_LABELS = {"front": "Shift+]", "forward": "]", "backward": "[", "back": "Shift+["}
+# Pfeiltasten: erst nach dieser Pause ein Befehl (ein Undo-Schritt). Länger als die
+# übliche Wiederholverzögerung der Tastatur (500–660 ms), sonst zwei Schritte.
+NUDGE_COMMIT_MS = 800
+# Reihenfolge: Pfeiltasten funktionieren auf jeder Tastaturbelegung; [ ] zusätzlich
+# (auf deutscher Tastatur kommen sie per AltGr/Option, ohne Shift)
+RESTACK_KEYS = {"front": ("Shift-Up", "Shift-braceright", "braceright"),
+                "forward": ("Up", "bracketright"),
+                "backward": ("Down", "bracketleft"),
+                "back": ("Shift-Down", "Shift-braceleft", "braceleft")}
+RESTACK_LABELS = {"front": "Shift+↑", "forward": "↑", "backward": "↓", "back": "Shift+↓"}
 
 
 def project_dialog_options(save: bool, initialfile: str = "",
@@ -140,6 +146,7 @@ class MainWindow(ctk.CTk):
         self.grid_overlay = GridOverlay(self.canvas)
         self.drag = DragController(self.canvas, self.palette)
         self.drag.grid_snap = self.settings.snap_to_grid
+        self.drag.on_gesture_start = self.flush_nudge
         self.canvas.on_context = self._widget_menu
         self._build_canvas_toolbar()
         self.console = OutputConsole(center, self.runner)
@@ -269,7 +276,8 @@ class MainWindow(ctk.CTk):
         if self.session.execute(SetManager("window", PLACE, rects, recursive=True)):
             self.show_status("Alles frei angeordnet – rückgängig mit "
                              f"{MOD_LABEL}+Z")
-        self.hide_grid_notice()
+        if self.grid_notice.winfo_ismapped():
+            self.hide_grid_notice()
 
     def toggle_grid_snap(self) -> None:
         snap = not self.drag.grid_snap
@@ -329,6 +337,8 @@ class MainWindow(ctk.CTk):
         edit_menu.add_command(label="Löschen", accelerator="Entf", command=self.delete_selected)
         edit_menu.add_separator()
         self._add_restack_entries(edit_menu)
+        edit_menu.add_separator()
+        edit_menu.add_command(label="Alles frei anordnen", command=self.make_all_free)
         self.menus = {"file": file_menu, "edit": edit_menu}
 
         if menubar is not None:
@@ -345,6 +355,7 @@ class MainWindow(ctk.CTk):
         """Kontextmenü eines Widgets auf der Arbeitsfläche."""
         if node_id == "window":
             return
+        self.drag.cancel()  # Rechtsklick mitten im Ziehen
         menu = getattr(self, "_context_menu", None)
         if menu is not None:
             menu.destroy()
@@ -369,9 +380,10 @@ class MainWindow(ctk.CTk):
         for key, action in shortcuts.items():
             self.bind_all(f"<{MOD}-{key}>", lambda e, a=action: (a(), "break")[1])
         self.bind_all(f"<{MOD}-Shift-z>", lambda e: (self.session.redo(), "break")[1])
-        for where, key in RESTACK_KEYS.items():
-            self.bind_all(f"<{MOD}-{key}>",
-                          lambda e, w=where: (self.restack_selected(w), "break")[1])
+        for where, keys in RESTACK_KEYS.items():
+            for key in keys:
+                self.bind_all(f"<{MOD}-{key}>",
+                              lambda e, w=where: (self.restack_selected(w), "break")[1])
         self.bind_all("<Escape>", self._escape)
         # tkinter.Misc.bind: CTkFrame.bind() bindet an sein internes Canvas,
         # den Fokus hat aber die Arbeitsfläche selbst (DesignCanvas._pressed)
@@ -384,6 +396,9 @@ class MainWindow(ctk.CTk):
                               lambda e, r=d_row, c=d_column: self.nudge(r, c))
             tkinter.Misc.bind(self.canvas, f"<Shift-{key}>",
                               lambda e, r=d_row, c=d_column: self.nudge(r, c, NUDGE_FAR))
+            # Strg/Cmd+Pfeil ist Reihenfolge (bind_all): hier nicht zusätzlich verschieben
+            for combo in (f"<{MOD}-{key}>", f"<{MOD}-Shift-{key}>"):
+                tkinter.Misc.bind(self.canvas, combo, lambda e: None)
 
     # ------------------------------------------------------------ Bearbeiten
 
@@ -469,6 +484,7 @@ class MainWindow(ctk.CTk):
 
     def confirm_discard(self) -> bool:
         """True, wenn weitergemacht werden darf (gespeichert oder verworfen)."""
+        self.flush_nudge()  # eine offene Pfeiltasten-Bewegung zählt als Änderung
         if not self.session.dirty:
             return True
         answer = messagebox.askyesnocancel(
@@ -569,6 +585,9 @@ class MainWindow(ctk.CTk):
     def quit_app(self) -> None:
         if not self._dialog_open and self.confirm_discard():
             self.runner.stop()
+            if self._nudge_job is not None:
+                self.after_cancel(self._nudge_job)
+                self._nudge_job = None
             self.destroy()
 
 

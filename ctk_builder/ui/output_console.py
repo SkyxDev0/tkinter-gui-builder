@@ -33,7 +33,11 @@ class OutputConsole(ctk.CTkFrame):
         self.text.configure(state="disabled")
         self._shown_running: bool | None = None
         self._show_state()
-        self.after(POLL_MS, self._poll)
+        self._poll_job = self.after(POLL_MS, self._poll)
+
+    def destroy(self) -> None:
+        self.after_cancel(self._poll_job)  # sonst meldet Tcl nach dem Schließen einen Fehler
+        super().destroy()
 
     def write(self, text: str) -> None:
         self.text.configure(state="normal")
@@ -63,4 +67,4 @@ class OutputConsole(ctk.CTkFrame):
         if text:
             self.write(text)
         self._show_state()
-        self.after(POLL_MS, self._poll)
+        self._poll_job = self.after(POLL_MS, self._poll)

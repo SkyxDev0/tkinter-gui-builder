@@ -39,7 +39,10 @@ Rasterzellen einzurasten. Das Raster (`grid()`) bleibt als Option erhalten.
   als Mindestmaß (Text): gespeichert wird die sichtbare Größe. Ein Label mit `width` 0
   (automatisch) bekommt dabei eine feste Breite.
 - **Pfeiltasten:** 1 px, mit `Shift` 10 px. Das Widget bewegt sich sofort; der Befehl folgt
-  nach 400 ms Pause bzw. vor jeder anderen Änderung (ein Rückgängig-Schritt).
+  nach 800 ms Pause (länger als die Wiederholverzögerung der Tastatur), vor jeder anderen
+  Änderung, vor jeder Geste und vor der Frage nach ungespeicherten Änderungen.
+- **Reihenfolge:** `Strg/Cmd+↑/↓` (mit `Shift`: ganz), zusätzlich `[`/`]`; Rechtsklick-Menü
+  und Menü „Bearbeiten“.
 - **Esc:** bricht Ziehen oder Größe-Ändern ab (kein Befehl); sonst wählt Esc den
   Eltern-Container.
 - **Duplizieren:** Kopie 16 px nach rechts unten, am Rand nach links oben – nie genau auf
@@ -71,11 +74,16 @@ geht es nur per Rückgängig.
   (`geometry.to_logical`) – exakt bei 100–225 %.
 - Hilfselemente (Auswahlrahmen, Anfasser, Hilfslinien, Rahmen) sind Kinder der
   Arbeitsfläche, nicht der Fensterfläche: nicht abgeschnitten, keine Entwurfs-Bindtags.
-- Drag-Invarianten: Das gedrückte Widget wird nie unsichtbar gemacht oder neu angeordnet
-  (sonst geht der Maus-Grab verloren); Live-`place()` nur in freien Containern; ein Befehl
-  während einer Geste (z. B. Strg+Z) bricht sie ab; nach einem Ziehen ohne Befehl stellt
-  ein Neuzeichnen die Stapelreihenfolge wieder her (nie `lower()` ohne Bezug, sonst
-  verschwindet das Widget hinter dem internen Canvas eines CTkFrame).
+- Drag-Invarianten: Das gedrückte Widget wird nie zerstört, unsichtbar gemacht oder neu
+  angeordnet (sonst geht der Maus-Grab verloren). Dafür zeichnet die Arbeitsfläche bei
+  reinen Positionsänderungen frei platzierter Widgets nicht neu, sondern verschiebt die
+  Ansichten (`DesignCanvas._move_views`). Abbrechen stellt Position, Größe und Stapelung
+  direkt aus dem Modell wieder her (`restore`, `restack`). Live-`place()` nur in freien
+  Containern. Ein Befehl während einer Geste (z. B. Strg+Z) bricht sie ab; jeder neue Klick
+  räumt Reste einer Geste auf, deren Loslassen nie ankam. Nie `lower()` ohne Bezug, sonst
+  verschwindet das Widget hinter dem internen Canvas eines CTkFrame.
+- Frei → Raster ist polynomiell: Ein Band, dessen Mitglieder sich alle überlappen, wird
+  nicht weiter untersucht; sonst ohne Zurückverfolgen.
 - Einrasten (`ctk_builder/snapping.py`) und Geometrie (`ctk_builder/geometry.py`) ohne Tk,
   gut testbar.
 - Raster-Overlay (Linien, Köpfe) nur für Raster-Container.
