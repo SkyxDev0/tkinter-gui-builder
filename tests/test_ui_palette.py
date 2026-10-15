@@ -1,12 +1,11 @@
-from conftest import click
+from conftest import click, grid_session
 from ctk_builder.commands import AddWidget
-from ctk_builder.session import Session
 from ctk_builder.ui.palette import Palette
 from ctk_builder.widget_specs import SPECS
 
 
 def test_palette_click_adds_and_selects(root):
-    session = Session()
+    session = grid_session()
     palette = Palette(root, session)
     palette.pack()
     root.update()
@@ -18,7 +17,7 @@ def test_palette_click_adds_and_selects(root):
 
 
 def test_palette_adds_into_selected_frame(root):
-    session = Session()
+    session = grid_session()
     palette = Palette(root, session)
     frame = AddWidget("window", "CTkFrame")
     session.execute(frame)
@@ -28,7 +27,7 @@ def test_palette_adds_into_selected_frame(root):
 
 
 def test_palette_search_filters_tiles(root):
-    palette = Palette(root, Session())
+    palette = Palette(root, grid_session())
     palette.pack()
     assert palette.filter("box") == ["CTkTextbox", "CTkCheckBox"]
     root.update()
@@ -39,7 +38,7 @@ def test_palette_search_filters_tiles(root):
 
 def test_click_on_tile_border_adds_too(root):
     """Auch der Kachelhintergrund (internes Canvas von CTkFrame) reagiert auf Klicks."""
-    session = Session()
+    session = grid_session()
     palette = Palette(root, session)
     palette.pack()
     root.update()

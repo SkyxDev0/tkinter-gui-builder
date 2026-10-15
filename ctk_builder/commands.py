@@ -12,12 +12,14 @@ import copy
 from dataclasses import fields
 from typing import Any, Optional
 
-from ctk_builder import names
+from ctk_builder import geometry, names
 from ctk_builder.model import (
-    GridConfig, LineConfig, Layout, Node, Project, WidgetNode, WindowNode,
-    fits, new_id, next_free_cell, occupant,
+    GRID, MANAGERS, PLACE, GridConfig, LineConfig, Layout, Node, Project, WidgetNode,
+    WindowNode, fits, new_id, next_free_cell, occupant,
 )
 from ctk_builder.widget_specs import GROUP, HANDLER, SPECS
+
+DUPLICATE_OFFSET = 16  # Versatz einer Kopie im freien Modus
 
 
 class CommandError(Exception):
@@ -115,11 +117,43 @@ def _container(project: Project, node_id: str) -> Node:
     return node
 
 
+def _grid_container(project: Project, node_id: str) -> Node:
+    node = _container(project, node_id)
+    if node.is_free:
+        raise CommandError("Zeilen und Spalten gibt es nur bei der Anordnung „Raster“")
+    return node
+
+
 def _widget(project: Project, node_id: str) -> WidgetNode:
     node = project.find(node_id)
     if not isinstance(node, WidgetNode):
         raise CommandError("Widget nicht gefunden")
     return node
+
+
+def _keep_size(frame: WidgetNode, rect: geometry.Rect) -> None:
+    """Gemessene Größe eines Frames als width/height übernehmen."""
+    frame.props["width"], frame.props["height"] = rect.width, rect.height
+
+
+def _check_position(x: int, y: int) -> None:
+    if any(not isinstance(v, int) or isinstance(v, bool) or v < 0 for v in (x, y)):
+        raise CommandError("Position muss aus ganzen Zahlen >= 0 bestehen")
+
+
+def _place(container: Node, node: WidgetNode, x: Optional[int], y: Optional[int],
+           rects: Optional[geometry.Rects] = None, anchor: Optional[str] = None,
+           size: Optional[tuple[int, int]] = None) -> None:
+    """Setzt die freie Position. Eine übergebene Position gilt, wie sie ist (die
+    Arbeitsfläche hat sie mit echten Größen begrenzt). Ohne Angabe: unter anchor
+    bzw. dem untersten Kind, mit gemessenen Größen (rects, size), sonst geschätzt."""
+    if x is None or y is None:
+        if size is None:
+            size = (rects[node.id].width, rects[node.id].height) \
+                if rects and node.id in rects else geometry.size_hint(node)
+        x, y = geometry.spot_below(container, size, anchor, frozenset({node.id}), rects)
+    _check_position(x, y)
+    node.layout.x, node.layout.y = x, y
 
 
 def _grow_to(container: Node, row: int, column: int) -> None:
@@ -158,32 +192,49 @@ class AddWidget(Command):
     description = "Widget hinzufügen"
 
     def __init__(self, parent_id: str, widget_type: str,
-                 row: Optional[int] = None, column: Optional[int] = None):
+                 row: Optional[int] = None, column: Optional[int] = None,
+                 x: Optional[int] = None, y: Optional[int] = None,
+                 rects: Optional[geometry.Rects] = None, anchor: Optional[str] = None,
+                 size: Optional[tuple[int, int]] = None):
+        """row/column gelten in Raster-Containern, x/y in freien Containern.
+        Ohne Angabe: nächste freie Zelle bzw. unter dem Widget anchor (sonst unter
+        dem untersten Kind). rects: gemessene Geometrie der Geschwister; size:
+        gemessene Größe des neuen Widgets."""
         super().__init__()
         self.parent_id = parent_id
         self.widget_type = widget_type
         self.row = row
         self.column = column
+        self.x = x
+        self.y = y
+        self.rects = dict(rects or {})
+        self.anchor = anchor
+        self.size = size
         self.node_id = new_id()  # bleibt bei Redo gleich, damit Auswahl passt
 
     def apply(self, project: Project) -> None:
         spec = SPECS[self.widget_type]
         parent = _container(project, self.parent_id)
-        if self.row is None or self.column is None:
-            row, column = next_free_cell(parent)
-        else:
-            row, column = self.row, self.column
-        _grow_to(parent, row, column)
-        if occupant(parent, row, column) is not None:
-            raise CommandError("Zelle ist schon belegt")
         node = WidgetNode(
             id=self.node_id,
             type=spec.type,
             name=project.unique_name(spec.prefix),
             props=dict(spec.initial),
-            layout=Layout(row=row, column=column),
             grid=GridConfig() if spec.is_container else None,
+            # neue Frames ordnen wie ihr Eltern-Container an
+            manager=parent.manager if spec.is_container else None,
         )
+        if parent.is_free:
+            _place(parent, node, self.x, self.y, self.rects, self.anchor, self.size)
+        else:
+            if self.row is None or self.column is None:
+                row, column = next_free_cell(parent)
+            else:
+                row, column = self.row, self.column
+            _grow_to(parent, row, column)
+            if occupant(parent, row, column) is not None:
+                raise CommandError("Zelle ist schon belegt")
+            node.layout = Layout(row=row, column=column)
         parent.children.append(node)
 
 
@@ -201,16 +252,24 @@ class RemoveWidget(Command):
 
 
 class MoveWidget(Command):
-    """Verschiebt ein Widget in eine Zelle; belegte Zelle -> Tausch."""
+    """Verschiebt ein Widget in eine Zelle (belegte Zelle -> Tausch) bzw. in einem
+    freien Container an die Position x, y."""
 
     description = "Widget verschieben"
 
-    def __init__(self, node_id: str, parent_id: str, row: int, column: int):
+    def __init__(self, node_id: str, parent_id: str,
+                 row: Optional[int] = None, column: Optional[int] = None,
+                 x: Optional[int] = None, y: Optional[int] = None,
+                 rects: Optional[geometry.Rects] = None):
+        """rects: gemessene Geometrie (z. B. des verschobenen Frames)."""
         super().__init__()
         self.node_id = node_id
         self.parent_id = parent_id
         self.row = row
         self.column = column
+        self.x = x
+        self.y = y
+        self.rects = dict(rects or {})
 
     def apply(self, project: Project) -> None:
         node = _widget(project, self.node_id)
@@ -218,12 +277,27 @@ class MoveWidget(Command):
         if project.is_descendant(self.parent_id, self.node_id):
             raise CommandError("Ein Frame kann nicht in sich selbst verschoben werden")
         source = project.parent_of(self.node_id)
+        if target.is_free:
+            index = source.children.index(node)
+            source.children.remove(node)
+            if node.is_container and source.is_grid and node.id in self.rects:
+                _keep_size(node, self.rects[node.id])  # sonst springt er auf width/height
+            _place(target, node, self.x, self.y, self.rects)
+            if target is source:  # im selben Container bleibt die Stapelreihenfolge
+                target.children.insert(index, node)
+            else:
+                target.children.append(node)
+            return
+        if self.row is None or self.column is None:
+            raise CommandError("Zielzelle fehlt")
         _grow_to(target, self.row, self.column)
         other = occupant(target, self.row, self.column, frozenset({node.id}))
         old_layout = copy.copy(node.layout)
         source.children.remove(node)
 
         if other is not None:
+            if source.is_free:
+                raise CommandError("Zelle ist belegt")  # kein Tausch zwischen Frei und Raster
             if project.is_descendant(source.id, other.id):
                 raise CommandError("Tausch nicht möglich: Ziel enthält die Quelle")
             target.children.remove(other)
@@ -241,9 +315,11 @@ class MoveWidget(Command):
 class DuplicateWidget(Command):
     description = "Widget duplizieren"
 
-    def __init__(self, node_id: str):
+    def __init__(self, node_id: str, rects: Optional[geometry.Rects] = None):
+        """rects: gemessene Geometrie des Eltern-Containers und seiner Kinder."""
         super().__init__()
         self.node_id = node_id
+        self.rects = dict(rects or {})
         self.new_node_id: Optional[str] = None
 
     def apply(self, project: Project) -> None:
@@ -251,10 +327,23 @@ class DuplicateWidget(Command):
         parent = project.parent_of(self.node_id)
         taken = {w.name for w in project.iter_widgets()}
         clone = _copy_with_new_ids(project, node, taken)
-        row, column = next_free_cell(parent)
-        _grow_to(parent, row, column)
-        clone.layout.row, clone.layout.column = row, column
-        clone.layout.rowspan = clone.layout.columnspan = 1
+        if parent.is_free:
+            rect = geometry.rect_of(node, self.rects)
+            size = (rect.width, rect.height)
+            origin = (node.layout.x, node.layout.y)
+            for offset in (DUPLICATE_OFFSET, -DUPLICATE_OFFSET):
+                x, y = geometry.clamp(parent, origin[0] + offset, origin[1] + offset, *size,
+                                      rects=self.rects)
+                if (x, y) != origin:
+                    break  # am Rand nicht genau auf das Original legen
+            else:
+                x, y = geometry.free_spot(parent, size, rects=self.rects)
+            clone.layout.x, clone.layout.y = x, y
+        else:
+            row, column = next_free_cell(parent)
+            _grow_to(parent, row, column)
+            clone.layout.row, clone.layout.column = row, column
+            clone.layout.rowspan = clone.layout.columnspan = 1
         parent.children.append(clone)
         if self.new_node_id is None:
             self.new_node_id = clone.id
@@ -330,9 +419,116 @@ class SetLayout(Command):
         if set(layout.sticky) - set("nsew") or len(set(layout.sticky)) != len(layout.sticky):
             raise CommandError("sticky darf nur n, s, e, w enthalten")
         layout.sticky = "".join(ch for ch in "nsew" if ch in layout.sticky)
-        if not fits(parent, layout, frozenset({node.id})):
+        if "x" in self.changes or "y" in self.changes:
+            _check_position(layout.x, layout.y)
+        if not parent.is_free and not fits(parent, layout, frozenset({node.id})):
             raise CommandError("Layout überdeckt ein anderes Widget oder liegt außerhalb")
         node.layout = layout
+
+
+class SetGeometry(Command):
+    """Position und Größe auf einmal (Anfasser im freien Modus)."""
+
+    description = "Größe ändern"
+
+    def __init__(self, node_id: str, x: int, y: int, width: int, height: int):
+        super().__init__()
+        self.node_id = node_id
+        self.x, self.y, self.width, self.height = x, y, width, height
+
+    def apply(self, project: Project) -> None:
+        node = _widget(project, self.node_id)
+        spec = SPECS[node.type]
+        if not all(any(p.name == key for p in spec.props) for key in ("width", "height")):
+            raise CommandError(f"{node.type} hat keine einstellbare Größe")
+        if not project.parent_of(node.id).is_free:
+            raise CommandError("Größe per Anfasser nur bei der Anordnung „Frei“")
+        _check_position(self.x, self.y)
+        for value in (self.width, self.height):
+            if not isinstance(value, int) or value < 1:
+                raise CommandError("Größe muss eine positive ganze Zahl sein")
+        node.layout.x, node.layout.y = self.x, self.y
+        node.props["width"], node.props["height"] = self.width, self.height
+
+
+class SetManager(Command):
+    """Schaltet einen Container zwischen „Frei“ (place) und „Raster“ (grid) um.
+
+    rects: auf der Arbeitsfläche gemessene Geometrie der Kinder (logische Pixel);
+    ohne Messung werden Positionen bzw. Größen geschätzt. Raster -> Frei: Jedes
+    Kind bleibt, wo es zu sehen war; per sticky gestreckte Widgets behalten ihre
+    gestreckte Größe. Frei -> Raster: Kinder werden zeilenweise auf Zellen verteilt.
+    """
+
+    description = "Anordnung ändern"
+
+    def __init__(self, container_id: str, manager: str,
+                 rects: Optional[geometry.Rects] = None, recursive: bool = False):
+        """recursive: auch alle Frames darin umstellen (ein Rückgängig-Schritt)."""
+        super().__init__()
+        if manager not in MANAGERS:
+            raise ValueError(f"Unbekannte Anordnung {manager!r}")
+        self.container_id = container_id
+        self.manager = manager
+        self.rects = dict(rects or {})
+        self.recursive = recursive
+
+    def apply(self, project: Project) -> None:
+        container = _container(project, self.container_id)
+        targets = [container]
+        if self.recursive:
+            targets += [w for w in project.iter_widgets()
+                        if w.is_container and project.is_descendant(w.id, container.id)]
+        targets = [t for t in targets if t.manager != self.manager]
+        if not targets:
+            raise CommandError("Diese Anordnung ist schon eingestellt")
+        for target in targets:  # Messwerte stammen alle aus dem Zustand davor
+            if self.manager == PLACE:
+                self._to_place(target)
+            else:
+                self._to_grid(target)
+            target.manager = self.manager
+
+    def _to_place(self, container: Node) -> None:
+        if isinstance(container, WidgetNode) and container.id in self.rects:
+            # Ein Raster-Frame war so groß wie sein Inhalt; frei zählt width/height
+            _keep_size(container, self.rects[container.id])
+        unmeasured = [c for c in container.children if c.id not in self.rects]
+        for child in container.children:
+            if child.id in self.rects:
+                self._keep_visible_geometry(child, self.rects[child.id])
+        pending = {c.id for c in unmeasured}
+        for child in unmeasured:  # ohne Messung: erste freie Stelle
+            pending.discard(child.id)
+            child.layout.x, child.layout.y = geometry.free_spot(
+                container, geometry.size_hint(child),
+                ignore=frozenset(pending | {child.id}), rects=self.rects)
+
+    @staticmethod
+    def _keep_visible_geometry(child: WidgetNode, rect: geometry.Rect) -> None:
+        child.layout.x, child.layout.y = max(rect.x, 0), max(rect.y, 0)
+        if child.is_container:  # frei platziert ist ein Frame so groß wie width/height
+            _keep_size(child, rect)
+            return
+        props = {p.name for p in SPECS[child.type].props}
+        sticky = child.layout.sticky
+        if "width" in props and "e" in sticky and "w" in sticky:
+            child.props["width"] = rect.width
+        if "height" in props and "n" in sticky and "s" in sticky:
+            child.props["height"] = rect.height
+
+    def _to_grid(self, container: Node) -> None:
+        """Rechnet das Layout neu (exakt zurück nur per Rückgängig)."""
+        cells, rows, columns = geometry.grid_cells(container.children, self.rects)
+        for child in container.children:
+            for key, value in cells[child.id].items():
+                setattr(child.layout, key, value)
+        grid = container.grid
+        # alte Zeilen-/Spalteneinstellungen passen nur, wenn die Anzahl gleich bleibt
+        if len(grid.rows) != rows:
+            grid.rows = [LineConfig() for _ in range(rows)]
+        if len(grid.columns) != columns:
+            grid.columns = [LineConfig() for _ in range(columns)]
 
 
 _WINDOW_KEYS = {"class_name", "title", "width", "height", "resizable",
@@ -376,7 +572,7 @@ class InsertLine(Command):
         self.index = index
 
     def apply(self, project: Project) -> None:
-        container = _container(project, self.container_id)
+        container = _grid_container(project, self.container_id)
         lines = container.grid.lines(self.axis)
         if not 0 <= self.index <= len(lines):
             raise CommandError("Position außerhalb des Grids")
@@ -402,7 +598,7 @@ class RemoveLine(Command):
         self.index = index
 
     def apply(self, project: Project) -> None:
-        container = _container(project, self.container_id)
+        container = _grid_container(project, self.container_id)
         lines = container.grid.lines(self.axis)
         if not 0 <= self.index < len(lines):
             raise CommandError("Position außerhalb des Grids")
@@ -432,7 +628,7 @@ class SetLineConfig(Command):
         self.config = LineConfig(weight=weight, minsize=minsize, uniform=uniform)
 
     def apply(self, project: Project) -> None:
-        container = _container(project, self.container_id)
+        container = _grid_container(project, self.container_id)
         lines = container.grid.lines(self.axis)
         if not 0 <= self.index < len(lines):
             raise CommandError("Position außerhalb des Grids")
@@ -441,3 +637,36 @@ class SetLineConfig(Command):
         if self.config.uniform and not self.config.uniform.isidentifier():
             raise CommandError("uniform muss ein einfacher Name sein")
         lines[self.index] = copy.copy(self.config)
+
+
+RESTACK = {
+    "front": "Ganz nach vorne", "forward": "Nach vorne",
+    "backward": "Nach hinten", "back": "Ganz nach hinten",
+}
+
+
+class Restack(Command):
+    """Ändert die Stapelreihenfolge im Container (später = oben).
+
+    Die Reihenfolge ist auch die im exportierten Code und damit die Tab-Reihenfolge.
+    """
+
+    def __init__(self, node_id: str, where: str):
+        super().__init__()
+        if where not in RESTACK:
+            raise ValueError(f"Unbekannte Richtung {where!r}")
+        self.node_id = node_id
+        self.where = where
+        self.description = RESTACK[where]
+
+    def apply(self, project: Project) -> None:
+        node = _widget(project, self.node_id)
+        siblings = project.parent_of(node.id).children
+        index = siblings.index(node)
+        new = {"front": len(siblings) - 1, "back": 0,
+               "forward": min(index + 1, len(siblings) - 1),
+               "backward": max(index - 1, 0)}[self.where]
+        if new == index:
+            raise CommandError("Liegt schon " + ("ganz oben" if self.where in ("front", "forward")
+                                                 else "ganz unten"))
+        siblings.insert(new, siblings.pop(index))

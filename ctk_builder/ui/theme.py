@@ -37,6 +37,7 @@ HEADER_BG: Color = ("#e2e5ea", "#26262b")     # Zeilen-/Spaltenköpfe
 GRID_LINE: Color = ("#c5cad3", "#3a3a40")
 SELECT = "#f97316"                            # Auswahlrahmen (orange)
 DROP = "#22c55e"                              # Drop-Ziel (grün)
+GUIDE = "#ec4899"                             # Hilfslinien beim freien Verschieben (pink)
 
 RADIUS = 12
 MONO_FAMILY = {"darwin": "Menlo", "win32": "Consolas"}.get(sys.platform, "DejaVu Sans Mono")

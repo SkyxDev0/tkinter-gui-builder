@@ -1,13 +1,12 @@
 import customtkinter as ctk
 
-from conftest import type_into
+from conftest import grid_session, type_into
 from ctk_builder.commands import AddWidget, SetProperty
-from ctk_builder.session import Session
 from ctk_builder.ui.properties import ERROR_BORDER, PropertiesPanel
 
 
 def test_properties_widget_fields(root):
-    session = Session()
+    session = grid_session()
     panel = PropertiesPanel(root, session)
     panel.pack()
     button = AddWidget("window", "CTkButton")
@@ -23,7 +22,7 @@ def test_properties_widget_fields(root):
 
 
 def test_properties_invalid_value_marks_field(root):
-    session = Session()
+    session = grid_session()
     messages = []
     session.on_status = messages.append
     panel = PropertiesPanel(root, session)
@@ -39,7 +38,7 @@ def test_properties_invalid_value_marks_field(root):
 
 
 def test_properties_layout_and_sticky(root):
-    session = Session()
+    session = grid_session()
     panel = PropertiesPanel(root, session)
     panel.pack()
     label = AddWidget("window", "CTkLabel")
@@ -53,7 +52,7 @@ def test_properties_layout_and_sticky(root):
 
 
 def test_properties_window_and_line(root):
-    session = Session()
+    session = grid_session()
     panel = PropertiesPanel(root, session)
     panel.pack()
     assert panel.fields["title"].get() == "App"
@@ -67,7 +66,7 @@ def test_properties_window_and_line(root):
 
 
 def test_sections_collapse_and_stay_collapsed(root):
-    session = Session()
+    session = grid_session()
     panel = PropertiesPanel(root, session)
     panel.pack()
     label = AddWidget("window", "CTkLabel")
@@ -88,7 +87,7 @@ def test_sections_collapse_and_stay_collapsed(root):
 
 
 def test_short_choices_are_segments(root):
-    session = Session()
+    session = grid_session()
     panel = PropertiesPanel(root, session)
     button = AddWidget("window", "CTkButton")
     session.execute(button)

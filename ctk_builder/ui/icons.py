@@ -10,7 +10,7 @@ import tkinter
 
 from ctk_builder.ui import theme
 
-ICONS = ("widgets", "tree", "undo", "redo", "copy", "trash", "grid", "play")
+ICONS = ("widgets", "tree", "undo", "redo", "copy", "trash", "grid", "magnet", "play")
 
 
 def round_rect(canvas: tkinter.Canvas, x1: float, y1: float, x2: float, y2: float,
@@ -67,6 +67,13 @@ def draw_icon(canvas: tkinter.Canvas, name: str, cx: float, cy: float, size: flo
         for c in (9.33, 14.67):
             canvas.create_line(p(c, 4, c, 20), **stroke)
             canvas.create_line(p(4, c, 20, c), **stroke)
+    elif name == "magnet":
+        canvas.create_line(p(6.5, 4, 6.5, 12.5), **stroke)
+        canvas.create_line(p(17.5, 4, 17.5, 12.5), **stroke)
+        canvas.create_arc(*p(6.5, 7, 17.5, 18), start=180, extent=180, style="arc",
+                          outline=color, width=width)
+        canvas.create_line(p(4.5, 8, 8.5, 8), **stroke)
+        canvas.create_line(p(15.5, 8, 19.5, 8), **stroke)
     elif name == "play":
         canvas.create_polygon(p(8, 5, 19, 12, 8, 19), fill=color, outline=color,
                               width=width, joinstyle="round")

@@ -98,15 +98,25 @@ def _grid_args(widget: WidgetNode) -> list[str]:
     return args
 
 
-def _widget_lines(widget: WidgetNode, master: str) -> list[str]:
+def _place_args(widget: WidgetNode) -> list[str]:
+    return [f"x={widget.layout.x}", f"y={widget.layout.y}"]
+
+
+def _widget_lines(widget: WidgetNode, master: str, free: bool) -> list[str]:
+    """free: der Eltern-Container platziert frei (place statt grid)."""
     indent = " " * 8
     attr = f"self.{widget.name}"
     lines = _call(indent, f"{attr} = ctk.{widget.type}", _widget_args(widget, master))
-    lines += _call(indent, f"{attr}.grid", _grid_args(widget))
-    if widget.is_container:
+    if free:
+        lines += _call(indent, f"{attr}.place", _place_args(widget))
+    else:
+        lines += _call(indent, f"{attr}.grid", _grid_args(widget))
+    if widget.is_container and not widget.is_free:
+        if free:  # frei platziert: Frame bleibt width x height statt Inhaltsgröße
+            lines.append(f"{indent}{attr}.grid_propagate(False)")
         lines += _grid_config(indent, attr, widget)
     for child in widget.children:
-        lines += _widget_lines(child, attr)
+        lines += _widget_lines(child, attr, widget.is_free)
     return lines
 
 
@@ -142,7 +152,8 @@ def generate_ui(project: Project, module_name: str) -> str:
     ]
     if not window.resizable:
         out.append("        self.resizable(False, False)")
-    out += _grid_config(indent, "self", window)
+    if not window.is_free:
+        out += _grid_config(indent, "self", window)
 
     groups = group_names(project)
     if groups:
@@ -151,7 +162,7 @@ def generate_ui(project: Project, module_name: str) -> str:
 
     for child in window.children:
         out.append("")
-        out += _widget_lines(child, "self")
+        out += _widget_lines(child, "self", window.is_free)
 
     for handler in handler_names(project):
         out += [

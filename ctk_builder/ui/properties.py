@@ -8,9 +8,10 @@ from typing import Any, Callable, Optional
 import customtkinter as ctk
 
 from ctk_builder.commands import (
-    Command, RenameWidget, SetLayout, SetLineConfig, SetProperty, SetWindowProperty,
+    Command, RenameWidget, SetLayout, SetLineConfig, SetManager, SetProperty,
+    SetWindowProperty,
 )
-from ctk_builder.model import WidgetNode, WindowNode
+from ctk_builder.model import GRID, PLACE, Node, WidgetNode, WindowNode
 from ctk_builder.session import Session
 from ctk_builder.ui import theme
 from ctk_builder.ui.widgets import ToggleChip
@@ -18,6 +19,13 @@ from ctk_builder.widget_specs import CHOICE, SPECS, format_value, parse_value
 
 ERROR_BORDER = "#ef4444"
 SEGMENT_MAX = 3  # Auswahlen mit bis zu so vielen Werten als Segment-Knöpfe
+MANAGER_LABELS = {PLACE: "Frei", GRID: "Raster"}
+MANAGER_HINTS = {
+    PLACE: "Widgets frei verschieben. Sie bleiben beim Vergrößern des Fensters an "
+           "ihrer Stelle.",
+    GRID: "Widgets in Zeilen und Spalten. Sie passen sich beim Vergrößern des "
+          "Fensters an.",
+}
 
 TRACK = ("#e8eaee", "#26262b")         # Hintergrund von Segment-Knöpfen und Menüs
 TRACK_HOVER = ("#dde0e5", "#2f2f34")
@@ -201,7 +209,26 @@ class PropertiesPanel(ctk.CTkFrame):
                 self._entry(prop.name, prop.name, format_value(value),
                             lambda text, p=prop: SetProperty(
                                 node.id, p.name, parse_value(p, text, self._color_ok)))
+        if node.is_container:
+            self._section("arrange", "Anordnung der Inhalte")
+            self._manager_choice(node)
         self._build_layout(node)
+
+    def _manager_choice(self, container: Node) -> None:
+        """Frei (place) oder Raster (grid); misst beim Umschalten die Fläche aus."""
+        by_label = {label: manager for manager, label in MANAGER_LABELS.items()}
+
+        def make(label: str) -> Command:
+            return SetManager(container.id, by_label[label],
+                              self.session.measure(container.id))
+
+        self._choice("manager", "Anordnung", MANAGER_LABELS[container.manager],
+                     tuple(MANAGER_LABELS.values()), make)
+        hint = MANAGER_HINTS[container.manager]
+        ctk.CTkLabel(self._parent, text=hint, anchor="w", justify="left", wraplength=220,
+                     font=theme.font(11), text_color=theme.MUTED).grid(
+            row=self._row, column=0, columnspan=2, sticky="w", pady=(2, 4))
+        self._row += 1
 
     def _color_ok(self, name: str) -> bool:
         try:
@@ -213,6 +240,11 @@ class PropertiesPanel(ctk.CTkFrame):
     def _build_layout(self, node: WidgetNode) -> None:
         self._section("layout", "Layout")
         layout = node.layout
+        if self.session.project.parent_of(node.id).is_free:
+            for key in ("x", "y"):
+                self._entry(key, key, str(getattr(layout, key)),
+                            lambda text, k=key: SetLayout(node.id, **{k: _int(k, text)}))
+            return
         for key in ("row", "column", "rowspan", "columnspan", "padx", "pady"):
             self._entry(key, key, str(getattr(layout, key)),
                         lambda text, k=key: SetLayout(node.id, **{k: _int(k, text)}))
@@ -246,6 +278,8 @@ class PropertiesPanel(ctk.CTkFrame):
                         lambda text, k=key: SetWindowProperty(k, _int(k, text)))
         self._switch("resizable", "Größe veränderbar", window.resizable,
                      lambda value: SetWindowProperty("resizable", value))
+        self._section("arrange", "Anordnung der Inhalte")
+        self._manager_choice(window)
         self._section("look", "Darstellung")
         self._choice("appearance_mode", "Modus", window.appearance_mode,
                      ("system", "light", "dark"),

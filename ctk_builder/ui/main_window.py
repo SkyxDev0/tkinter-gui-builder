@@ -12,7 +12,12 @@ from typing import Any, Callable, Optional
 import customtkinter as ctk
 
 from ctk_builder import exporter
-from ctk_builder.commands import DuplicateWidget, MoveWidget, RemoveWidget
+from ctk_builder import geometry
+from ctk_builder.commands import (
+    RESTACK, DuplicateWidget, MoveWidget, RemoveWidget, Restack, SetLayout, SetManager,
+)
+from ctk_builder.geometry import Rect
+from ctk_builder.model import GRID, PLACE
 from ctk_builder.project_io import SUFFIX, ProjectFileError
 from ctk_builder.runner import ProcessRunner
 from ctk_builder.session import Session
@@ -36,6 +41,11 @@ FILETYPES = [("CTk Builder Projekt", f"*{SUFFIX}")]
 # 080a28104e). Dort daher nur die einfache Endung; project_path() ergänzt den Rest.
 MAC_FILETYPES = [("CTk Builder Projekt", "*.json")]
 PLATFORM = sys.platform  # in Tests ersetzbar (sys.platform selbst nicht: CTk liest es)
+NUDGE_FAR = 10        # Pixel bei Shift+Pfeiltaste im freien Modus
+NUDGE_COMMIT_MS = 400  # Pfeiltasten: erst nach dieser Pause ein Befehl (ein Undo-Schritt)
+RESTACK_KEYS = {"front": "Shift-braceright", "forward": "bracketright",
+                "backward": "bracketleft", "back": "Shift-braceleft"}
+RESTACK_LABELS = {"front": "Shift+]", "forward": "]", "backward": "[", "back": "Shift+["}
 
 
 def project_dialog_options(save: bool, initialfile: str = "",
@@ -94,6 +104,9 @@ class MainWindow(ctk.CTk):
         self.settings = settings or Settings()
         self.runner = ProcessRunner()
         self._dialog_open = False
+        self._nudge: Optional[tuple[str, int, int]] = None  # (Knoten, x, y) noch offen
+        self._nudge_job: Optional[str] = None
+        self._notice_dismissed: Optional[object] = None  # Projekt, dessen Hinweis zu ist
         self.geometry("1360x860")
         self.minsize(1040, 660)
 
@@ -126,6 +139,8 @@ class MainWindow(ctk.CTk):
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.grid_overlay = GridOverlay(self.canvas)
         self.drag = DragController(self.canvas, self.palette)
+        self.drag.grid_snap = self.settings.snap_to_grid
+        self.canvas.on_context = self._widget_menu
         self._build_canvas_toolbar()
         self.console = OutputConsole(center, self.runner)
         self.console.grid(row=1, column=0, sticky="ew", pady=(14, 0))
@@ -139,6 +154,8 @@ class MainWindow(ctk.CTk):
         self.status.grid(row=2, column=0, columnspan=4, sticky="ew", padx=20, pady=(0, 6))
         self.session.on_status = self.show_status
         self.session.subscribe(self.update_title)
+        self.session.before_change.append(self.flush_nudge)
+        self.session.subscribe_selection(self.flush_nudge)
 
         self._bind_keys()
         self.protocol("WM_DELETE_WINDOW", self.quit_app)
@@ -148,6 +165,7 @@ class MainWindow(ctk.CTk):
             self.createcommand("::tk::mac::Quit", self.quit_app)
         self.show_panel("widgets")
         self.update_title()
+        self._update_grid_notice()
 
     # ------------------------------------------------------------ Rahmen
 
@@ -203,11 +221,61 @@ class MainWindow(ctk.CTk):
                                     tooltip=f"Duplizieren ({MOD_LABEL}+D)"),
             "delete": IconButton(bar, "trash", self.delete_selected, danger=True,
                                  tooltip="Löschen (Entf)"),
+            "snap": IconButton(bar, "magnet", self.toggle_grid_snap,
+                               active=self.settings.snap_to_grid,
+                               tooltip="Frei: zusätzlich am 8-px-Raster einrasten"),
             "grid": IconButton(bar, "grid", self.toggle_grid_lines, active=True,
-                               tooltip="Rasterlinien ein/aus"),
+                               tooltip="Rasterlinien ein/aus (Anordnung „Raster“)"),
         }
         for i, button in enumerate(self.toolbar_buttons.values()):
             button.pack(side="left", padx=(6 if i == 0 else 0, 6), pady=6)
+        self._build_grid_notice()
+
+    def _build_grid_notice(self) -> None:
+        """Hinweis beim Öffnen alter Projekte (Format 1 kannte nur das Raster)."""
+        notice = self.grid_notice = theme.card(self.canvas, corner_radius=10)
+        ctk.CTkLabel(notice, text="Dieses Projekt ordnet im Raster an.",
+                     font=theme.font(13), text_color=theme.TEXT).pack(
+            side="left", padx=(14, 10), pady=8)
+        theme.primary_button(notice, text="Alles frei anordnen", width=150,
+                             command=self.make_all_free).pack(side="left", pady=8)
+        close = ctk.CTkButton(notice, text="✕", width=30, height=30, corner_radius=8,
+                              fg_color="transparent", hover_color=theme.HOVER,
+                              text_color=theme.MUTED, command=self.hide_grid_notice)
+        close.pack(side="left", padx=(6, 8), pady=8)
+        self.session.subscribe(self._update_grid_notice)
+
+    def _update_grid_notice(self) -> None:
+        project = self.session.project
+        show = (project.format_version == 1 and project.window.manager == GRID
+                and project is not self._notice_dismissed)
+        if show:
+            self.grid_notice.place(x=16, y=16)
+            self.grid_notice.lift()
+        else:
+            self.grid_notice.place_forget()
+
+    def hide_grid_notice(self) -> None:
+        self._notice_dismissed = self.session.project
+        self._update_grid_notice()
+
+    def make_all_free(self) -> None:
+        """Fenster und alle Frames auf „Frei“; alles bleibt, wo es zu sehen ist."""
+        project = self.session.project
+        rects: dict[str, Rect] = {}
+        for node in [project.window, *project.iter_widgets()]:
+            if node.is_container:
+                rects.update(self.session.measure(node.id))
+        if self.session.execute(SetManager("window", PLACE, rects, recursive=True)):
+            self.show_status("Alles frei angeordnet – rückgängig mit "
+                             f"{MOD_LABEL}+Z")
+        self.hide_grid_notice()
+
+    def toggle_grid_snap(self) -> None:
+        snap = not self.drag.grid_snap
+        self.drag.grid_snap = snap
+        self.settings.snap_to_grid = snap
+        self.toolbar_buttons["snap"].set_active(snap)
 
     def show_panel(self, name: str) -> None:
         """Seitenpanel umschalten: "widgets" (Palette) oder "tree" (Struktur)."""
@@ -259,12 +327,34 @@ class MainWindow(ctk.CTk):
         edit_menu.add_separator()
         edit_menu.add_command(label="Duplizieren", accelerator=f"{MOD_LABEL}+D", command=self.duplicate_selected)
         edit_menu.add_command(label="Löschen", accelerator="Entf", command=self.delete_selected)
+        edit_menu.add_separator()
+        self._add_restack_entries(edit_menu)
         self.menus = {"file": file_menu, "edit": edit_menu}
 
         if menubar is not None:
             menubar.add_cascade(label="Datei", menu=file_menu)
             menubar.add_cascade(label="Bearbeiten", menu=edit_menu)
             tkinter.Tk.configure(self, menu=menubar)
+
+    def _add_restack_entries(self, menu: tkinter.Menu) -> None:
+        for where, label in RESTACK.items():
+            menu.add_command(label=label, accelerator=f"{MOD_LABEL}+{RESTACK_LABELS[where]}",
+                             command=lambda w=where: self.restack_selected(w))
+
+    def _widget_menu(self, node_id: str, event: tkinter.Event) -> None:
+        """Kontextmenü eines Widgets auf der Arbeitsfläche."""
+        if node_id == "window":
+            return
+        menu = getattr(self, "_context_menu", None)
+        if menu is not None:
+            menu.destroy()
+        menu = self._context_menu = tkinter.Menu(self, tearoff=False)
+        menu.add_command(label="Duplizieren", accelerator=f"{MOD_LABEL}+D",
+                         command=self.duplicate_selected)
+        menu.add_command(label="Löschen", accelerator="Entf", command=self.delete_selected)
+        menu.add_separator()
+        self._add_restack_entries(menu)
+        menu.tk_popup(event.x_root, event.y_root)
 
     def _post_menu(self, key: str, button: tkinter.Misc) -> None:
         self.menus[key].tk_popup(button.winfo_rootx(),
@@ -279,6 +369,10 @@ class MainWindow(ctk.CTk):
         for key, action in shortcuts.items():
             self.bind_all(f"<{MOD}-{key}>", lambda e, a=action: (a(), "break")[1])
         self.bind_all(f"<{MOD}-Shift-z>", lambda e: (self.session.redo(), "break")[1])
+        for where, key in RESTACK_KEYS.items():
+            self.bind_all(f"<{MOD}-{key}>",
+                          lambda e, w=where: (self.restack_selected(w), "break")[1])
+        self.bind_all("<Escape>", self._escape)
         # tkinter.Misc.bind: CTkFrame.bind() bindet an sein internes Canvas,
         # den Fokus hat aber die Arbeitsfläche selbst (DesignCanvas._pressed)
         for widget in (self.canvas, self.tree.tree):
@@ -288,28 +382,86 @@ class MainWindow(ctk.CTk):
                                        "Left": (0, -1), "Right": (0, 1)}.items():
             tkinter.Misc.bind(self.canvas, f"<{key}>",
                               lambda e, r=d_row, c=d_column: self.nudge(r, c))
+            tkinter.Misc.bind(self.canvas, f"<Shift-{key}>",
+                              lambda e, r=d_row, c=d_column: self.nudge(r, c, NUDGE_FAR))
 
     # ------------------------------------------------------------ Bearbeiten
+
+    def _escape(self, event: tkinter.Event) -> Optional[str]:
+        """Esc: Ziehen abbrechen; sonst auf der Arbeitsfläche den Eltern-Container wählen."""
+        if self.drag.cancel():
+            return "break"
+        if self.focus_get() is self.canvas:
+            parent = self.session.project.parent_of(self.session.selected_id)
+            if parent is not None:
+                self.session.select(parent.id)
+                return "break"
+        return None
+
+    def restack_selected(self, where: str) -> None:
+        if self.session.selected_id != "window":
+            self.session.execute(Restack(self.session.selected_id, where))
 
     def delete_selected(self) -> None:
         if self.session.selected_id != "window":
             self.session.execute(RemoveWidget(self.session.selected_id))
 
-    def nudge(self, d_row: int, d_column: int) -> None:
-        """Verschiebt das ausgewählte Widget um eine Zelle (Pfeiltasten)."""
+    def nudge(self, d_row: int, d_column: int, step: int = 1) -> None:
+        """Pfeiltasten: im Raster um eine Zelle, frei um step Pixel (Shift: 10)."""
         node = self.session.project.find(self.session.selected_id)
-        if node is None or node.id == "window":
+        if node is None or node.id == "window" or self.drag.active:
             return
+        parent = self.session.project.parent_of(node.id)
+        if parent.is_free:
+            self._nudge_free(node.id, parent, d_column * step, d_row * step)
+            return
+        if step != 1:
+            return  # Shift+Pfeil gibt es nur im freien Modus
         row, column = node.layout.row + d_row, node.layout.column + d_column
         if row < 0 or column < 0:
             return
-        parent = self.session.project.parent_of(node.id)
         self.session.execute(MoveWidget(node.id, parent.id, row, column))
+
+    def _nudge_free(self, node_id: str, parent, dx: int, dy: int) -> None:
+        """Verschiebt sofort auf der Fläche; der Befehl folgt nach einer Tastenpause.
+
+        Gedrückt gehaltene Pfeiltasten ergeben so einen Undo-Schritt und kein
+        Neuzeichnen der ganzen Fläche bei jedem Pixel.
+        """
+        if self._nudge is not None and self._nudge[0] != node_id:
+            self.flush_nudge()
+        node = self.session.project.find(node_id)
+        x0, y0 = self._nudge[1:] if self._nudge else (node.layout.x, node.layout.y)
+        rect = self.canvas.rect_of(node_id)
+        x, y = geometry.clamp_to(self.canvas.container_size(parent.id), x0 + dx, y0 + dy,
+                                 rect.width, rect.height)
+        self._nudge = (node_id, x, y)
+        self.canvas.views[node_id].place(x=x, y=y)
+        self.drag._show_badge(parent.id, Rect(x, y, rect.width, rect.height),
+                              f"x {x} · y {y}")
+        if self._nudge_job is not None:
+            self.after_cancel(self._nudge_job)
+        self._nudge_job = self.after(NUDGE_COMMIT_MS, self.flush_nudge)
+
+    def flush_nudge(self) -> None:
+        """Übernimmt eine offene Pfeiltasten-Bewegung als einen Befehl."""
+        if self._nudge_job is not None:
+            self.after_cancel(self._nudge_job)
+            self._nudge_job = None
+        if self._nudge is None:
+            return
+        node_id, x, y = self._nudge
+        self._nudge = None
+        self.drag._badge.place_forget()
+        node = self.session.project.find(node_id)
+        if node is not None and (x, y) != (node.layout.x, node.layout.y):
+            self.session.execute(SetLayout(node_id, x=x, y=y))
 
     def duplicate_selected(self) -> None:
         if self.session.selected_id == "window":
             return
-        command = DuplicateWidget(self.session.selected_id)
+        parent = self.session.project.parent_of(self.session.selected_id)
+        command = DuplicateWidget(self.session.selected_id, self.session.measure(parent.id))
         if self.session.execute(command):
             self.session.select(command.new_node_id)
 

@@ -89,7 +89,11 @@ class Palette(ctk.CTkFrame):
         return visible
 
     def add(self, widget_type: str) -> None:
-        """Fügt in die nächste freie Zelle des Ziel-Containers ein und wählt aus."""
-        command = AddWidget(self.session.target_container_id(), widget_type)
+        """Fügt in die nächste freie Zelle bzw. unter dem gewählten Widget ein."""
+        container_id = self.session.target_container_id()
+        command = AddWidget(container_id, widget_type,
+                            rects=self.session.measure(container_id),
+                            size=self.session.probe_size(widget_type),
+                            anchor=self.session.selected_id)
         if self.session.execute(command):
             self.session.select(command.node_id)
