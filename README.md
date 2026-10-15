@@ -4,16 +4,17 @@
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 
 Drag & Drop GUI-Builder für [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):
-Oberflächen im `grid()`-Layout zusammenklicken und sauberen, lesbaren Python-Code exportieren.
+Widgets frei auf der Fläche anordnen – oder im `grid()`-Raster – und sauberen, lesbaren
+Python-Code exportieren.
 
 ![CTk Builder im hellen Modus](docs/images/screenshot-hell.png)
 
 ## Funktionen
 
 - **Widgets:** Label, Button, Entry, Textbox, CheckBox, Switch, RadioButton und Frame – Frames lassen sich beliebig verschachteln
-- **Drag & Drop:** aus der Palette auf eine Zelle ziehen, Widgets verschieben oder tauschen; ein Drop neben das Raster legt automatisch eine neue Zeile oder Spalte an
-- **Echte Vorschau:** Die Arbeitsfläche zeigt echte CustomTkinter-Widgets im echten `grid()`
-- **Raster im Griff:** Zeilen-/Spaltenköpfe mit `weight`, `minsize` und `uniform`, Kontextmenü zum Einfügen und Löschen
+- **Frei platzieren:** Widgets aus der Palette ziehen und frei verschieben; sie rasten an Kanten und Mitten der Nachbarn ein (Hilfslinien), Anfasser ändern die Größe
+- **Oder im Raster:** pro Fenster bzw. Frame umschaltbar auf `grid()` – mit Zeilen-/Spaltenköpfen (`weight`, `minsize`, `uniform`), Tauschen per Drag & Drop und automatisch neuen Zeilen/Spalten
+- **Echte Vorschau:** Die Arbeitsfläche zeigt echte CustomTkinter-Widgets mit echtem `place()` bzw. `grid()` – der Export sieht genauso aus
 - **Eigenschaften-Panel** mit Prüfung jeder Eingabe; jede Änderung lässt sich rückgängig machen
 - **Sauberer Export** in zwei Dateien – generierter Layout-Code und deine eigene Logik bleiben getrennt
 - **▶ Ausführen** startet das Programm direkt aus dem Builder, Ausgaben erscheinen im Ausgabe-Panel
@@ -54,12 +55,13 @@ Alternativ die `.whl`-Datei aus den Releases installieren: `pip install ctk_buil
 
 ## Bedienung
 
-1. **Widgets einfügen:** Ein Widget aus der Palette auf die Arbeitsfläche ziehen. Ein einfacher Klick fügt es in die nächste freie Zelle ein.
-2. **Auswählen und bearbeiten:** Ein Widget anklicken – rechts erscheinen seine Eigenschaften und sein Layout (`row`, `column`, `sticky`, Abstände …). Eingaben werden mit Enter übernommen; ungültige Werte werden rot markiert.
-3. **Anordnen:** Widgets per Drag & Drop verschieben; liegt in der Zielzelle schon ein Widget, tauschen beide die Plätze. Pfeiltasten verschieben das ausgewählte Widget zellenweise.
-4. **Raster einstellen:** Einen Zeilen- oder Spaltenkopf anklicken, um `weight`, `minsize` und `uniform` zu setzen. Rechtsklick fügt Zeilen/Spalten ein oder löscht leere. `+` hängt eine neue an.
-5. **Fenster einstellen:** Auf eine freie Stelle neben dem Fenster klicken – dann lassen sich Titel, Größe, Klassenname, Modus (hell/dunkel) und Farbthema setzen.
-6. **Speichern, Exportieren, Ausführen:** Das Projekt wird als `*.ctkb.json` gespeichert. **Exportieren** erzeugt den Python-Code daneben, **▶ Ausführen** speichert, exportiert und startet das Programm.
+1. **Widgets einfügen:** Ein Widget aus der Palette auf die Arbeitsfläche ziehen. Ein einfacher Klick legt es unter das ausgewählte Widget.
+2. **Frei anordnen:** Widgets ziehen – sie folgen der Maus und rasten an Kanten und Mitten der Nachbarn und des Fensters ein (pinke Hilfslinien). `Alt` bzw. `Option` während des Ziehens: ohne Einrasten. Der Magnet in der Werkzeugleiste rastet zusätzlich am 8-px-Raster ein. In einen Frame ziehen verschiebt das Widget hinein.
+3. **Größe ändern:** Am ausgewählten Widget an einem der acht Anfasser ziehen. Pfeiltasten verschieben um 1 px, mit `Shift` um 10 px. `Esc` bricht das Ziehen ab.
+4. **Auswählen und bearbeiten:** Ein Widget anklicken – rechts erscheinen seine Eigenschaften und seine Position. Eingaben werden mit Enter übernommen; ungültige Werte werden rot markiert. Rechtsklick öffnet ein Menü mit Duplizieren, Löschen und der Reihenfolge (nach vorne/hinten).
+5. **Fenster einstellen:** Auf eine freie Stelle neben dem Fenster klicken – dann lassen sich Titel, Größe, Klassenname, **Anordnung (Frei/Raster)**, Modus (hell/dunkel) und Farbthema setzen. Frames haben dieselbe Anordnungs-Auswahl.
+6. **Im Raster arbeiten:** Bei der Anordnung „Raster“ landen Widgets in Zellen; liegt in der Zielzelle schon eines, tauschen beide die Plätze. Einen Zeilen- oder Spaltenkopf anklicken, um `weight`, `minsize` und `uniform` zu setzen; Rechtsklick fügt Zeilen/Spalten ein oder löscht leere. Projekte aus Version 1.0 öffnen im Raster – „Alles frei anordnen“ stellt sie mit einem Klick um.
+7. **Speichern, Exportieren, Ausführen:** Das Projekt wird als `*.ctkb.json` gespeichert. **Exportieren** erzeugt den Python-Code daneben, **▶ Ausführen** speichert, exportiert und startet das Programm.
 
 Die linke Leiste schaltet zwischen der Widget-Palette und dem **Strukturbaum** um – dort lässt sich jedes Widget auch dann auswählen, wenn es auf der Fläche verdeckt ist.
 
@@ -70,7 +72,9 @@ Die linke Leiste schaltet zwischen der Widget-Palette und dem **Strukturbaum** u
 | Rückgängig / Wiederholen | `Cmd+Z` / `Cmd+Shift+Z` | `Strg+Z` / `Strg+Shift+Z` |
 | Duplizieren | `Cmd+D` | `Strg+D` |
 | Löschen | `Entf` / `⌫` | `Entf` / `Rücktaste` |
-| Verschieben | Pfeiltasten | Pfeiltasten |
+| Verschieben (frei: 1 px / 10 px) | Pfeiltasten / `Shift`+Pfeil | Pfeiltasten / `Shift`+Pfeil |
+| Nach vorne / Nach hinten | `Cmd+]` / `Cmd+[` | `Strg+]` / `Strg+[` |
+| Ziehen abbrechen / Eltern wählen | `Esc` | `Esc` |
 | Neu / Öffnen / Speichern | `Cmd+N` / `Cmd+O` / `Cmd+S` | `Strg+N` / `Strg+O` / `Strg+S` |
 | Exportieren / Ausführen | `Cmd+E` / `Cmd+R` | `Strg+E` / `Strg+R` |
 
@@ -139,6 +143,7 @@ GitHub Actions testet, baut die Apps für macOS, Windows und Linux, prüft sie u
 ```
 ctk_builder/
   model.py, commands.py   Projektmodell und Befehle mit Undo/Redo
+  geometry.py, snapping.py  freies Platzieren: Größen, Einrasten, Frei -> Raster
   project_io.py           Projektdateien (*.ctkb.json)
   codegen.py, exporter.py Code-Generator und Export
   ui/                     Oberfläche (Palette, Arbeitsfläche, Eigenschaften …)
@@ -146,7 +151,8 @@ tools/                    App bauen, prüfen und verpacken
 docs/                     Spezifikation, Implementierungspläne, Release-Notizen
 ```
 
-Details zum Entwurf: [`docs/superpowers/specs/2026-10-13-ctk-gui-builder-design.md`](docs/superpowers/specs/2026-10-13-ctk-gui-builder-design.md)
+Details zum Entwurf: [`docs/superpowers/specs/2026-10-13-ctk-gui-builder-design.md`](docs/superpowers/specs/2026-10-13-ctk-gui-builder-design.md),
+freies Platzieren: [`docs/superpowers/specs/2026-10-15-freies-platzieren.md`](docs/superpowers/specs/2026-10-15-freies-platzieren.md)
 
 ## Lizenz
 
