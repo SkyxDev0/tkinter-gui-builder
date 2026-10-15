@@ -74,6 +74,26 @@ class Tooltip:
             self._tip = None
 
 
+def arm_click(widget: tkinter.Misc, action: Callable[[], None]) -> None:
+    """Wie ein normaler Knopf: nur auslösen, wenn auch das Drücken hier begann.
+
+    Sonst löst ein verirrtes Loslassen (z. B. nach abgebrochenem Ziehen auf der
+    Arbeitsfläche) Löschen, Duplizieren oder Rückgängig aus.
+    """
+    armed = [False]
+
+    def press(_event: tkinter.Event) -> None:
+        armed[0] = True
+
+    def release(event: tkinter.Event) -> None:
+        was_armed, armed[0] = armed[0], False
+        if was_armed and pointer_inside(widget, event):
+            action()
+
+    widget.bind("<Button-1>", press, add="+")
+    widget.bind("<ButtonRelease-1>", release, add="+")
+
+
 class IconButton(tkinter.Canvas):
     """Quadratischer Icon-Knopf mit runder Hover-Fläche; optional umschaltbar (active)."""
 
@@ -91,8 +111,7 @@ class IconButton(tkinter.Canvas):
         self._hover = False
         self.bind("<Enter>", lambda e: self._set_hover(True))
         self.bind("<Leave>", lambda e: self._set_hover(False))
-        self.bind("<ButtonRelease-1>",
-                  lambda e: self.invoke() if pointer_inside(self, e) else None)
+        arm_click(self, self.invoke)
         if tooltip:
             Tooltip(self, tooltip)
         self._draw()
@@ -146,8 +165,7 @@ class RailItem(tkinter.Canvas):
         self._hover = False
         self.bind("<Enter>", lambda e: self._set_hover(True))
         self.bind("<Leave>", lambda e: self._set_hover(False))
-        self.bind("<ButtonRelease-1>",
-                  lambda e: self.command() if pointer_inside(self, e) else None)
+        arm_click(self, lambda: self.command())
         self._draw()
 
     def set_active(self, active: bool) -> None:

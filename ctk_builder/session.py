@@ -23,7 +23,7 @@ class Session:
         self.on_status: Callable[[str], None] = lambda message: None
         # Gerenderte Geometrie eines Containers und seiner Kinder; die Arbeitsfläche
         # trägt sich hier ein. Ohne Arbeitsfläche: leer (Befehle schätzen dann).
-        self.measure: Callable[[str], dict] = lambda container_id: {}
+        self.measurer: Callable[[str], dict] = lambda container_id: {}
         # Gemessene Größe eines neuen Widgets dieses Typs; ohne Arbeitsfläche: None
         self.probe_size: Callable[[str], Optional[tuple[int, int]]] = lambda widget_type: None
         # Vor jeder Modelländerung (Befehl, Undo/Redo, Neu/Öffnen): z. B. eine noch
@@ -89,6 +89,12 @@ class Session:
         return parent.id if parent is not None else "window"
 
     # ------------------------------------------------------------ Befehle
+
+    def measure(self, container_id: str) -> dict:
+        """Gemessene Geometrie für einen Befehl – nach offenen Änderungen (z. B. einer
+        Pfeiltasten-Bewegung), damit der Befehl den aktuellen Stand sieht."""
+        self._before_change()
+        return self.measurer(container_id)
 
     def _before_change(self) -> None:
         for callback in list(self.before_change):

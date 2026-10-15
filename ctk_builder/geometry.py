@@ -160,14 +160,18 @@ def spot_below(container: Node, size: tuple[int, int], anchor: Optional[str] = N
     x, y = rect.x, rect.bottom + GAP
     height = rects[container.id].height if rects and container.id in rects \
         else container_size(container)[1]
-    if y + size[1] <= height:
-        return clamp(container, x, y, *size, rects=rects)
+    others = [rect_of(c, rects) for c in children]
+    while y + size[1] <= height:
+        candidate = Rect(x, y, *size)
+        blocking = [o for o in others if candidate.overlaps(o)]
+        if not blocking:
+            return clamp(container, x, y, *size, rects=rects)
+        y = max(o.bottom for o in blocking) + GAP  # unter dem, was im Weg liegt
     return free_spot(container, size, ignore, rects)
 
 
 ALIGN = 4      # Kante so nah am Bandrand: Widget wird dorthin ausgerichtet (sticky)
 GRID_PAD = 4   # Abstand der Widgets nach Frei -> Raster
-SPLIT_TRIES = 3  # so viele große Widgets werden als „überspannend“ probiert
 
 
 def _merge(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -194,18 +198,25 @@ def bands(intervals: Mapping[str, tuple[int, int]]) -> list[tuple[int, int]]:
         result = []
         for band in _merge([intervals[i] for i in ids]):
             members = [i for i in ids if band[0] <= intervals[i][0] < band[1]]
-            inner: list[tuple[int, int]] = []
-            # die größten zuerst (bei Gleichstand mehrere probieren, begrenzt)
-            for candidate in sorted(members, key=extent, reverse=True)[:SPLIT_TRIES]:
-                if len(members) < 2:
-                    break
-                inner = split([i for i in members if i != candidate])
-                if len(inner) > 1:
-                    break
-            if len(inner) > 1:
-                result += inner
-            else:
+            # Überlappen sich alle gegenseitig, haben sie einen gemeinsamen Punkt:
+            # dann trennt kein Herausnehmen das Band (häufigster Fall: eine Spalte
+            # bündig ausgerichteter Widgets)
+            if len(members) < 2 or (max(intervals[i][0] for i in members)
+                                    < min(intervals[i][1] for i in members)):
                 result.append(band)
+                continue
+            # Das Widget, ohne das das Band in die meisten Teile zerfällt (bei
+            # Gleichstand das größte), überspannt sie. Kein Zurückverfolgen:
+            # höchstens n Ebenen mit je n Versuchen.
+            best, parts = None, 1
+            for candidate in sorted(members, key=extent, reverse=True):
+                count = len(_merge([intervals[i] for i in members if i != candidate]))
+                if count > parts:
+                    best, parts = candidate, count
+            if best is None:
+                result.append(band)
+            else:
+                result += split([i for i in members if i != best])
         return result
 
     return split(list(intervals))
