@@ -1,14 +1,13 @@
 import pytest
 
-from conftest import build_kontakt
+from conftest import build_kontakt, grid_session
 from ctk_builder.commands import AddWidget, RemoveWidget
 from ctk_builder.project_io import ProjectFileError
-from ctk_builder.session import Session
 
 
 @pytest.fixture
 def session():
-    return Session()
+    return grid_session()
 
 
 def test_execute_success_and_failure(session):

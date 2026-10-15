@@ -1,12 +1,13 @@
 import pytest
 
+from conftest import grid_project
 from ctk_builder import names
-from ctk_builder.model import Layout, Project, WidgetNode
+from ctk_builder.model import Layout, WidgetNode
 
 
 @pytest.fixture
 def project():
-    p = Project()
+    p = grid_project()
     p.window.children.append(WidgetNode(
         id="b", type="CTkButton", name="button_1",
         props={"command": "on_save"}, layout=Layout(),

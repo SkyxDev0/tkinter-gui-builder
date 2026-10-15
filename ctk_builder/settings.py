@@ -28,4 +28,20 @@ class Settings:
     @interpreter.setter
     def interpreter(self, value: str) -> None:
         self.data["interpreter"] = value
-        self.path.write_text(json.dumps(self.data, indent=2) + "\n", encoding="utf-8")
+        self._write()
+
+    @property
+    def snap_to_grid(self) -> bool:
+        """Beim freien Verschieben zusätzlich am 8-px-Raster einrasten."""
+        return self.data.get("snap_to_grid") is True
+
+    @snap_to_grid.setter
+    def snap_to_grid(self, value: bool) -> None:
+        self.data["snap_to_grid"] = bool(value)
+        self._write()
+
+    def _write(self) -> None:
+        try:
+            self.path.write_text(json.dumps(self.data, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass  # Einstellungen sind Komfort: ein schreibgeschütztes Home bricht nichts

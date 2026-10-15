@@ -8,11 +8,14 @@ Eingabefokus usw.) unterdrückt.
 
 from __future__ import annotations
 
+import sys
 import tkinter
 from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
+from ctk_builder import geometry
+from ctk_builder.geometry import Rect
 from ctk_builder.model import Node, WidgetNode
 from ctk_builder.session import Session
 from ctk_builder.ui import theme
@@ -21,6 +24,7 @@ from ctk_builder.widget_specs import GROUP, HANDLER, SPECS
 EMPTY_LINE_MIN = 40  # Mindestgröße leerer Zeilen/Spalten, nur im Builder
 SELECT_COLOR = theme.SELECT
 MARGIN = 44          # Abstand des Fensterrahmens; Platz für Zeilen-/Spaltenköpfe
+TOP_MARGIN = 80      # oben mehr: Platz für Werkzeugleiste und Hinweis über dem Fenster
 BACKDROP_STEP = 24   # Rasterweite des Hintergrunds
 TITLEBAR_HEIGHT = 30
 TRAFFIC_LIGHTS = ("#ff5f57", "#febc2e", "#28c840")
@@ -64,7 +68,7 @@ class DesignCanvas(ctk.CTkFrame):
         # Fensterrahmen mit Titelleiste; darin die eigentliche Fläche (surface)
         self.chrome = ctk.CTkFrame(self, fg_color=theme.CHROME, corner_radius=10,
                                    border_width=1, border_color=theme.BORDER)
-        self.chrome.place(x=MARGIN, y=MARGIN)
+        self.chrome.place(x=MARGIN, y=TOP_MARGIN)
         self.titlebar = tkinter.Canvas(self.chrome, width=1, height=TITLEBAR_HEIGHT,
                                        bg=theme.pick(theme.CHROME), highlightthickness=0, bd=0)
         self.titlebar.pack(fill="x", padx=8, pady=(4, 0))
@@ -77,16 +81,28 @@ class DesignCanvas(ctk.CTkFrame):
             if part is not self.surface:
                 part.bind("<Button-1>", lambda e: self.session.select("window"))
         self.views: dict[str, tkinter.Misc] = {}  # Knoten-ID -> Tk-Widget
+        # Hilfselemente auf der Fläche (Auswahl, Anfasser, Hilfslinien …): bekommen
+        # keine Entwurfs-Bindtags, damit ihre eigenen Klicks ankommen
+        self.overlay_parts: set[tkinter.Misc] = set()
         self._placeholders: list[tkinter.Frame] = []
+        self._probe_sizes: dict[tuple[str, float], tuple[int, int]] = {}
         self._tags: dict[str, str] = {}
         # Erweiterungen (Raster, Drag & Drop) hängen sich hier ein:
         self.after_render: list[Callable[[], None]] = []
         self.on_press: Optional[Callable[[str, tkinter.Event], None]] = None
         self.on_motion: Optional[Callable[[tkinter.Event], None]] = None
         self.on_release: Optional[Callable[[tkinter.Event], None]] = None
+        self.on_context: Optional[Callable[[str, tkinter.Event], None]] = None
+        # Hilfselemente gehören zur Arbeitsfläche, nicht zur Fensterfläche: so werden
+        # Rahmen und Anfasser an deren Rand nicht abgeschnitten (place in_=view)
         self._outline: list[tkinter.Frame] = [
-            tkinter.Frame(self.surface, bg=SELECT_COLOR) for _ in range(4)
+            tkinter.Frame(self, bg=SELECT_COLOR) for _ in range(4)
         ]
+        self.overlay_parts.update(self._outline)
+        # Hilfslinien/Anfasser hängen sich hier ein (nach jeder Auswahl neu zeichnen)
+        self.after_selection: list[Callable[[], None]] = []
+        session.measure = self.measure
+        session.probe_size = self.probe_size
         session.subscribe(self.render)
         session.subscribe_selection(self.show_selection)
         self.render()
@@ -139,7 +155,7 @@ class DesignCanvas(ctk.CTkFrame):
         self._draw_titlebar()
         self._configure_grid(self.surface, window)
         for child in window.children:
-            self._create(child, self.surface)
+            self._create(child, self.surface, window.is_free)
         self._install_bindings()
         for callback in self.after_render:
             callback()
@@ -152,6 +168,8 @@ class DesignCanvas(ctk.CTkFrame):
             configure = view.grid_rowconfigure if axis == "row" else view.grid_columnconfigure
             for index in range(count):
                 configure(index, weight=0, minsize=0, uniform="")
+        if node.is_free:
+            return  # place: Größe kommt aus width/height, kein Raster nötig
         for axis in ("row", "column"):
             configure = view.grid_rowconfigure if axis == "row" else view.grid_columnconfigure
             used = used_lines(node, axis)
@@ -168,17 +186,90 @@ class DesignCanvas(ctk.CTkFrame):
             self._placeholders.append(placeholder)
             view.grid_propagate(False)  # leerer Frame behält seine Größe wie im Programm
 
-    def _create(self, node: WidgetNode, master: tkinter.Misc) -> None:
+    def _create(self, node: WidgetNode, master: tkinter.Misc, free: bool) -> None:
+        """free: der Eltern-Container platziert frei (place statt grid)."""
         view = getattr(ctk, node.type)(master, **widget_kwargs(node))
         layout = node.layout
-        view.grid(row=layout.row, column=layout.column, rowspan=layout.rowspan,
-                  columnspan=layout.columnspan, sticky=layout.sticky,
-                  padx=layout.padx, pady=layout.pady)
+        if free:
+            view.place(x=layout.x, y=layout.y)  # CTk skaliert x/y selbst
+        else:
+            view.grid(row=layout.row, column=layout.column, rowspan=layout.rowspan,
+                      columnspan=layout.columnspan, sticky=layout.sticky,
+                      padx=layout.padx, pady=layout.pady)
         self.views[node.id] = view
         if node.is_container:
             self._configure_grid(view, node)
+            if free and node.is_grid:  # wie im Export: frei platziert = feste Größe
+                view.grid_propagate(False)
             for child in node.children:
-                self._create(child, view)
+                self._create(child, view, node.is_free)
+
+    # ------------------------------------------------------------ Messen
+
+    def scaling(self) -> float:
+        """CTk-Skalierung (HiDPI): physische Pixel = logische Pixel * scaling."""
+        return self.surface._get_widget_scaling()
+
+    def to_physical(self, value: float) -> int:
+        """Logisch -> physisch wie CTk: Hilfselemente liegen so pixelgenau auf den
+        Widgets, auch bei 125 % oder 150 %."""
+        return geometry.to_physical(value, self.scaling())
+
+    def to_logical(self, pixels: int) -> int:
+        return geometry.to_logical(pixels, self.scaling())
+
+    def rect_of(self, node_id: str) -> Rect:
+        """Geometrie relativ zum Eltern-Container, in logischen Pixeln.
+
+        Frei platzierte Widgets: Position aus dem Modell (die Quelle der Wahrheit),
+        Größe gemessen. Sonst alles gemessen.
+        """
+        if node_id == "window":
+            window = self.session.project.window
+            return Rect(0, 0, window.width, window.height)
+        view = self.view_of(node_id)
+        width, height = self.to_logical(view.winfo_width()), self.to_logical(view.winfo_height())
+        if self.session.project.parent_of(node_id).is_free:
+            node = self.session.project.find(node_id)
+            return Rect(node.layout.x, node.layout.y, width, height)
+        return Rect(self.to_logical(view.winfo_x()), self.to_logical(view.winfo_y()),
+                    width, height)
+
+    def container_size(self, container_id: str) -> tuple[int, int]:
+        """Sichtbare Innengröße eines Containers (ein Frame kann gestreckt sein)."""
+        rect = self.rect_of(container_id)
+        return rect.width, rect.height
+
+    def probe_size(self, widget_type: str) -> tuple[int, int]:
+        """Größe eines neuen Widgets, gemessen an einem unsichtbaren Probe-Exemplar."""
+        spec = SPECS[widget_type]
+        key = (widget_type, self.scaling())
+        if key not in self._probe_sizes:
+            node = WidgetNode(id="", type=widget_type, name="", props=dict(spec.initial))
+            probe = getattr(ctk, widget_type)(self.surface, **widget_kwargs(node))
+            probe.update_idletasks()
+            self._probe_sizes[key] = (self.to_logical(probe.winfo_reqwidth()),
+                                      self.to_logical(probe.winfo_reqheight()))
+            probe.destroy()
+        return self._probe_sizes[key]
+
+    def measure(self, container_id: str) -> dict[str, Rect]:
+        """Gerenderte Geometrie eines Containers und seiner Kinder (für SetManager)."""
+        container = self.session.project.find(container_id)
+        if container is None or container_id not in ["window", *self.views]:
+            return {}
+        self.update_idletasks()
+        rects = {container_id: self.rect_of(container_id)}
+        for child in container.children:
+            if child.id in self.views:
+                rects[child.id] = self.rect_of(child.id)
+        return rects
+
+    def to_local(self, container_id: str, x_root: int, y_root: int) -> tuple[float, float]:
+        """Bildschirmposition -> logische Koordinaten im Container."""
+        view = self.view_of(container_id)
+        scale = self.scaling()
+        return (x_root - view.winfo_rootx()) / scale, (y_root - view.winfo_rooty()) / scale
 
     # ------------------------------------------------------------ Klicks abfangen
 
@@ -192,6 +283,9 @@ class DesignCanvas(ctk.CTkFrame):
                             lambda e, n=node_id: self._pressed(n, e))
             self.bind_class(tag, "<B1-Motion>", self._moved)
             self.bind_class(tag, "<ButtonRelease-1>", self._released)
+            # Kontextmenü: Rechtsklick; macOS-Trackpads ohne Sekundärklick: Control-Klick
+            for event in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):
+                self.bind_class(tag, event, lambda e, n=node_id: self._context(n, e))
             self._tag_tree(view, tag, designed)
 
     def _tag_tree(self, view: tkinter.Misc, tag: str, designed: set) -> None:
@@ -202,7 +296,7 @@ class DesignCanvas(ctk.CTkFrame):
         # tkinter.Misc.winfo_children: CTkFrame verbirgt sein internes Canvas in
         # winfo_children(), Klicks auf leere Frame-Flächen landen aber genau dort
         for child in tkinter.Misc.winfo_children(view):
-            if child in designed or child in self._outline:
+            if child in designed or child in self.overlay_parts:
                 continue
             self._tag_tree(child, tag, designed)
 
@@ -211,6 +305,15 @@ class DesignCanvas(ctk.CTkFrame):
         self.focus_set()
         if self.on_press is not None:
             self.on_press(node_id, event)
+        return "break"
+
+    def _context(self, node_id: str, event: tkinter.Event) -> str:
+        if event.num == 2 and sys.platform != "darwin":
+            return "break"  # mittlere Taste unter Linux/Windows: nichts tun
+        self.session.select(node_id)
+        self.focus_set()
+        if self.on_context is not None:
+            self.on_context(node_id, event)
         return "break"
 
     def _moved(self, event: tkinter.Event) -> str:
@@ -222,6 +325,27 @@ class DesignCanvas(ctk.CTkFrame):
         if self.on_release is not None:
             self.on_release(event)
         return "break"
+
+    def container_at(self, x_root: int, y_root: int,
+                     exclude: Optional[str] = None) -> Optional[str]:
+        """Innerster Container unter der Bildschirmposition, nach Geometrie statt
+        nach Tk-Fenster: Das gezogene Widget (exclude, samt Inhalt), Anfasser und
+        Hilfslinien liegen dabei nicht im Weg. None außerhalb der Fläche."""
+
+        def inside(view: tkinter.Misc) -> bool:
+            x, y = view.winfo_rootx(), view.winfo_rooty()
+            return x <= x_root < x + view.winfo_width() and y <= y_root < y + view.winfo_height()
+
+        def walk(node: Node) -> str:
+            for child in reversed(node.children):  # oben liegende zuerst
+                if (child.is_container and child.id != exclude and child.id in self.views
+                        and inside(self.views[child.id])):
+                    return walk(child)
+            return node.id
+
+        if not inside(self.surface):
+            return None
+        return walk(self.session.project.window)
 
     def node_at(self, x_root: int, y_root: int) -> Optional[str]:
         """ID des entworfenen Knotens unter der Bildschirmposition, sonst None."""
@@ -237,6 +361,11 @@ class DesignCanvas(ctk.CTkFrame):
     # ------------------------------------------------------------ Auswahl
 
     def show_selection(self) -> None:
+        self._show_outline()
+        for callback in self.after_selection:  # nach dem Rahmen: Anfasser liegen obenauf
+            callback()
+
+    def _show_outline(self) -> None:
         node_id = self.session.selected_id
         if node_id == "window" or node_id not in self.views:
             for bar in self._outline:

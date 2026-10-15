@@ -34,9 +34,19 @@ class GridConfig:
         raise ValueError(f"Unbekannte Achse: {axis!r}")
 
 
+GRID = "grid"    # Container ordnet seine Kinder im Raster an (grid)
+PLACE = "place"  # Container platziert seine Kinder frei (place)
+MANAGERS = (PLACE, GRID)
+
+
 @dataclass
 class Layout:
-    """Grid-Platzierung eines Widgets in seinem Container."""
+    """Platzierung eines Widgets in seinem Container.
+
+    Raster-Container nutzen row … pady, freie Container x und y (logische Pixel,
+    ohne CTk-Skalierung). Die jeweils anderen Felder bleiben erhalten, damit ein
+    Wechsel des Modus zurück nichts verliert.
+    """
 
     row: int = 0
     column: int = 0
@@ -45,6 +55,8 @@ class Layout:
     sticky: str = ""
     padx: int = 0
     pady: int = 0
+    x: int = 0
+    y: int = 0
 
     def cells(self) -> set[tuple[int, int]]:
         return {
@@ -63,10 +75,21 @@ class WidgetNode:
     layout: Layout = field(default_factory=Layout)
     grid: Optional[GridConfig] = None  # nur bei Containern gesetzt
     children: list[WidgetNode] = field(default_factory=list)
+    manager: Optional[str] = None  # nur bei Containern: PLACE oder GRID
 
     @property
     def is_container(self) -> bool:
         return self.grid is not None
+
+    @property
+    def is_free(self) -> bool:
+        """True, wenn der Container seine Kinder frei platziert."""
+        return self.is_container and self.manager == PLACE
+
+    @property
+    def is_grid(self) -> bool:
+        """True, wenn der Container seine Kinder im Raster anordnet."""
+        return self.is_container and not self.is_free
 
 
 @dataclass
@@ -81,10 +104,19 @@ class WindowNode:
     color_theme: str = "blue"
     grid: GridConfig = field(default_factory=GridConfig)
     children: list[WidgetNode] = field(default_factory=list)
+    manager: str = GRID  # neue Projekte: frei (new_project); Format 1 kannte nur das Raster
 
     @property
     def is_container(self) -> bool:
         return True
+
+    @property
+    def is_free(self) -> bool:
+        return self.manager == PLACE
+
+    @property
+    def is_grid(self) -> bool:
+        return not self.is_free
 
 
 Node = Union[WindowNode, WidgetNode]
@@ -127,11 +159,18 @@ def next_free_cell(container: Node) -> tuple[int, int]:
     return len(container.grid.rows), 0
 
 
+def new_project() -> "Project":
+    """Neues Projekt im Builder: Widgets werden frei platziert."""
+    return Project(WindowNode(manager=PLACE))
+
+
 class Project:
     """Hält den Fensterbaum und benachrichtigt Beobachter über Änderungen."""
 
-    def __init__(self, window: Optional[WindowNode] = None):
+    def __init__(self, window: Optional[WindowNode] = None,
+                 format_version: Optional[int] = None):
         self.window = window if window is not None else WindowNode()
+        self.format_version = format_version  # Format der geladenen Datei, sonst None
         self._listeners: list[Callable[[], None]] = []
 
     def subscribe(self, callback: Callable[[], None]) -> Callable[[], None]:

@@ -18,7 +18,10 @@ def test_file_is_readable_json_with_version(tmp_path, kontakt):
     path = tmp_path / "k.ctkb.json"
     project_io.save(kontakt, path)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["format_version"] == FORMAT_VERSION
+    # reines Raster-Projekt: Format 1, damit Builder 1.0.x es weiter öffnen kann
+    assert data["format_version"] == 1
+    assert "manager" not in data["window"]
+    assert "x" not in data["window"]["children"][0]["layout"]
     assert data["window"]["title"] == "Kontakt"
 
 

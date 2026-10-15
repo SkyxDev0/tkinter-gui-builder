@@ -1,10 +1,10 @@
+from conftest import grid_session
 from ctk_builder.commands import AddWidget
-from ctk_builder.session import Session
 from ctk_builder.ui.structure_tree import StructureTree
 
 
 def test_tree_mirrors_model_and_selection(root):
-    session = Session()
+    session = grid_session()
     tree = StructureTree(root, session)
     tree.pack()
     frame = AddWidget("window", "CTkFrame")

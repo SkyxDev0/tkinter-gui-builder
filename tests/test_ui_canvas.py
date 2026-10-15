@@ -1,6 +1,5 @@
-from conftest import click, node_named
+from conftest import click, grid_session, node_named
 from ctk_builder.commands import AddWidget
-from ctk_builder.session import Session
 from ctk_builder.ui.canvas import EMPTY_LINE_MIN, DesignCanvas, widget_kwargs
 
 
@@ -76,7 +75,7 @@ def test_click_on_empty_area_of_frames_selects_them(canvas):
 
 def test_empty_containers_have_measurable_cells(root):
     """Ohne Kinder berechnet Tk kein Raster; leere Zellen müssen trotzdem messbar sein."""
-    session = Session()
+    session = grid_session()
     design = DesignCanvas(root, session)
     design.pack(fill="both", expand=True)
     root.update()

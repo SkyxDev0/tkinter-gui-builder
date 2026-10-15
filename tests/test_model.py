@@ -1,3 +1,4 @@
+from conftest import grid_project
 from ctk_builder.model import (
     GridConfig, Layout, LineConfig, Project, WidgetNode, fits, next_free_cell, occupant,
 )
@@ -12,7 +13,7 @@ def make_widget(id_, name, row=0, column=0, rowspan=1, columnspan=1, grid=None):
 
 
 def test_new_project_has_window_with_one_cell():
-    project = Project()
+    project = grid_project()
     assert project.window.id == "window"
     assert len(project.window.grid.rows) == 1
     assert len(project.window.grid.columns) == 1
@@ -30,7 +31,7 @@ def test_line_config_default():
 
 
 def test_occupant_and_fits():
-    project = Project()
+    project = grid_project()
     window = project.window
     window.grid = GridConfig(rows=[LineConfig()] * 2, columns=[LineConfig()] * 2)
     window.children.append(make_widget("a", "label_1", columnspan=2))
@@ -43,7 +44,7 @@ def test_occupant_and_fits():
 
 
 def test_next_free_cell_scans_rows_then_appends():
-    project = Project()
+    project = grid_project()
     window = project.window
     assert next_free_cell(window) == (0, 0)
     window.children.append(make_widget("a", "label_1"))
@@ -51,7 +52,7 @@ def test_next_free_cell_scans_rows_then_appends():
 
 
 def test_find_parent_descendant_and_iteration_order():
-    project = Project()
+    project = grid_project()
     frame = make_widget("f", "frame_1", grid=GridConfig())
     inner = make_widget("i", "label_2")
     frame.children.append(inner)
@@ -69,14 +70,14 @@ def test_find_parent_descendant_and_iteration_order():
 
 
 def test_unique_name():
-    project = Project()
+    project = grid_project()
     project.window.children.append(make_widget("a", "label_1"))
     assert project.unique_name("label") == "label_2"
     assert project.unique_name("button") == "button_1"
 
 
 def test_subscribe_and_unsubscribe():
-    project = Project()
+    project = grid_project()
     calls = []
     unsubscribe = project.subscribe(lambda: calls.append(1))
     project.notify()

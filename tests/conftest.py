@@ -7,12 +7,25 @@ from ctk_builder.commands import (
     AddWidget, CommandStack, InsertLine, RenameWidget, SetLayout, SetLineConfig,
     SetProperty, SetWindowProperty,
 )
-from ctk_builder.model import Project
+from ctk_builder.model import GRID, Project, WindowNode
+
+
+def grid_project() -> Project:
+    """Leeres Projekt mit Raster-Fenster (Standard bis Format 1; neue Projekte: frei)."""
+    return Project(WindowNode(manager=GRID))
+
+
+def grid_session():
+    from ctk_builder.session import Session
+
+    session = Session()
+    session.replace_project(grid_project(), None)
+    return session
 
 
 def build_kontakt() -> Project:
-    """Beispielprojekt: Formular mit Name, E-Mail, Newsletter-Auswahl und Buttons."""
-    stack = CommandStack(Project())
+    """Beispielprojekt im Raster: Formular mit Name, E-Mail, Newsletter und Buttons."""
+    stack = CommandStack(grid_project())
 
     def add(widget_type, parent="window", row=None, column=None, name=None, **props):
         cmd = AddWidget(parent, widget_type, row, column)
@@ -94,7 +107,7 @@ def app(tmp_path):
     from ctk_builder.settings import Settings
     from ctk_builder.ui.main_window import MainWindow
 
-    session = Session()
+    session = grid_session()
     session.replace_project(build_kontakt(), None)
     window = MainWindow(session, Settings(tmp_path / "settings.json"))
     window.update()
@@ -109,7 +122,7 @@ def canvas(root):
     from ctk_builder.session import Session
     from ctk_builder.ui.canvas import DesignCanvas
 
-    session = Session()
+    session = grid_session()
     session.replace_project(build_kontakt(), None)
     root.geometry("800x600")
     design = DesignCanvas(root, session)

@@ -2,17 +2,18 @@ import copy
 
 import pytest
 
+from conftest import grid_project
 from ctk_builder.commands import (
     AddWidget, CommandError, CommandStack, DuplicateWidget, InsertLine, MoveWidget,
     RemoveLine, RemoveWidget, RenameWidget, SetLayout, SetLineConfig, SetProperty,
     SetWindowProperty,
 )
-from ctk_builder.model import LineConfig, Project
+from ctk_builder.model import LineConfig
 
 
 @pytest.fixture
 def stack():
-    return CommandStack(Project())
+    return CommandStack(grid_project())
 
 
 def add(stack, widget_type="CTkLabel", parent="window", row=None, column=None):

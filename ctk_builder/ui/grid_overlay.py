@@ -43,7 +43,7 @@ class GridOverlay:
         project = self.session.project
         if self.lines_visible:
             for node in [project.window, *project.iter_widgets()]:
-                if node.is_container:
+                if node.is_container and not node.is_free:
                     self._draw_lines(node.id, len(node.grid.rows), len(node.grid.columns))
         self.redraw_headers()
 
@@ -82,6 +82,8 @@ class GridOverlay:
         container = session.project.find(container_id)
         if container is None or container_id not in (["window"] + list(self.canvas.views)):
             return
+        if container.is_free:
+            return  # frei platzierte Container haben keine Zeilen/Spalten
         self.canvas.update_idletasks()
         view = self.canvas.view_of(container_id)
         origin_x = view.winfo_rootx() - self.canvas.winfo_rootx()
